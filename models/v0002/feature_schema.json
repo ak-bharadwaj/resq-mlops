@@ -1,0 +1,23 @@
+{
+  "feature_version": "features-v1",
+  "features": {
+    "flagged_hours": {
+      "dtype": "float64",
+      "min": 0.0,
+      "max": 504.0
+    },
+    "norm_anomaly": {
+      "dtype": "float64",
+      "min": 0.0,
+      "max": 1.0
+    },
+    "recent_silence_ratio": {
+      "dtype": "float64",
+      "min": 0.0,
+      "max": 1.0
+    },
+    "worst_metric": {
+      "dtype": "string"
+    }
+  }
+}

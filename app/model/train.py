@@ -8,6 +8,8 @@ Strict Invariants:
 3. Monotonic Time Authority: Temporal bounds driven strictly by pre-holdout development cutoff
    (2026-01-31 UTC). Zero system clock calls.
 4. Dual-Hash Cryptographic Provenance: Generates immutable candidate package with artifact_hash.
+5. Grouped Holdout Isolation: GROUP_HOLDOUT_IDS are strictly excluded from candidate training
+   and development data.
 """
 from __future__ import annotations
 
@@ -15,7 +17,7 @@ import datetime as dt
 import hashlib
 import json
 import pathlib
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -23,7 +25,8 @@ from app.data.loader import (
     load_field_visits,
     load_gateway_master,
 )
-from app.data.schema import TelemetrySchemaContract
+from app.data.quality import HoldoutAccessError, HoldoutProtection
+from app.features.holdout import load_group_holdout_ids
 
 
 class TrainingError(Exception):
@@ -45,19 +48,21 @@ def compute_artifact_hash(model_dir: pathlib.Path) -> str:
 
 def train_candidate(
     data_dir: pathlib.Path,
-    candidate_version: str = "v0001",
+    candidate_version: str = "v0002",
     output_dir: pathlib.Path | None = None,
     registry_path: pathlib.Path = pathlib.Path("registry/active.json"),
     runs_dir: pathlib.Path = pathlib.Path("runs/training"),
+    holdout_path: pathlib.Path = pathlib.Path("registry/grouped_holdout.json"),
 ) -> dict[str, Any]:
     """Materialize candidate model package and emit training evidence.
 
     Args:
         data_dir: Path to the root data directory
-        candidate_version: Version identifier for candidate package
+        candidate_version: Version identifier for candidate package (default: v0002)
         output_dir: Optional custom destination directory (defaults to models/<candidate_version>)
         registry_path: Path to registry/active.json for verifying zero production mutation
         runs_dir: Path to directory where training evidence logs are stored
+        holdout_path: Path to registry/grouped_holdout.json for holdout isolation
 
     Returns:
         Dictionary summarizing candidate package creation and evidence details.
@@ -80,41 +85,87 @@ def train_candidate(
     # Filter visits to pre-holdout development period
     dev_visits = visits_df[visits_df["visited_on"] <= dev_cutoff_date].copy()
 
-    # 3. Destination Candidate Directory
+    # 3. Grouped Holdout Isolation (Rule 8, v25 Section 8)
+    holdout_ids = load_group_holdout_ids(holdout_path)
+    all_master_gids = set(master_df["canonical_id"].unique())
+    dev_gateways = all_master_gids - holdout_ids
+
+    # Verify no holdout gateway leaks into development set
+    for gid in dev_gateways:
+        HoldoutProtection.check_gateway_access(gid, holdout_ids, allow_holdout=False)
+
+    # 4. Destination Candidate Directory
     target_dir = output_dir or (pathlib.Path("models") / candidate_version)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    # 4. Write model_config.json
-    config_data = {
-        "model_version": candidate_version,
-        "baseline_days": 28,
-        "recent_days": 7,
-        "sigma": 3.0,
-        "metrics": [
-            "offline_duration_sec",
-            "disconnection_cnt",
-            "reboot_cnt",
-        ],
-        "visits_per_week": 15,
-    }
+    # 5. Model Configuration & Feature Schema based on Candidate Version
+    if candidate_version == "v0002":
+        model_type = "deterministic_weighted_multisignal"
+        feature_version = "features-v1"
+        config_data = {
+            "model_version": candidate_version,
+            "model_type": model_type,
+            "feature_version": feature_version,
+            "schema_version": "telemetry-v1",
+            "baseline_days": 28,
+            "recent_days": 7,
+            "sigma": 3.0,
+            "expected_hours_week": 168,
+            "weights": {
+                "w_anomaly": 0.7,
+                "w_silence": 0.3,
+            },
+            "metrics": [
+                "offline_duration_sec",
+                "disconnection_cnt",
+                "reboot_cnt",
+            ],
+            "visits_per_week": 15,
+        }
+        feature_schema_data = {
+            "feature_version": feature_version,
+            "features": {
+                "flagged_hours": {"dtype": "float64", "min": 0.0, "max": 504.0},
+                "norm_anomaly": {"dtype": "float64", "min": 0.0, "max": 1.0},
+                "recent_silence_ratio": {"dtype": "float64", "min": 0.0, "max": 1.0},
+                "worst_metric": {"dtype": "string"},
+            },
+        }
+        evidence_quality = "candidate"
+    else:
+        # Baseline v0001
+        model_type = "baseline_3sigma_anomaly"
+        feature_version = "baseline-v1"
+        config_data = {
+            "model_version": candidate_version,
+            "baseline_days": 28,
+            "recent_days": 7,
+            "sigma": 3.0,
+            "metrics": [
+                "offline_duration_sec",
+                "disconnection_cnt",
+                "reboot_cnt",
+            ],
+            "visits_per_week": 15,
+        }
+        feature_schema_data = {
+            "feature_version": feature_version,
+            "features": {
+                "offline_duration_sec": {"dtype": "float64", "min": 0.0, "max": 3600.0},
+                "disconnection_cnt": {"dtype": "float64", "min": 0.0},
+                "reboot_cnt": {"dtype": "float64", "min": 0.0},
+            },
+        }
+        evidence_quality = "baseline"
+
     (target_dir / "model_config.json").write_text(
         json.dumps(config_data, indent=2), encoding="utf-8"
     )
-
-    # 5. Write feature_schema.json
-    feature_schema_data = {
-        "feature_version": "baseline-v1",
-        "features": {
-            "offline_duration_sec": {"dtype": "float64", "min": 0.0, "max": 3600.0},
-            "disconnection_cnt": {"dtype": "float64", "min": 0.0},
-            "reboot_cnt": {"dtype": "float64", "min": 0.0},
-        },
-    }
     (target_dir / "feature_schema.json").write_text(
         json.dumps(feature_schema_data, indent=2), encoding="utf-8"
     )
 
-    # 6. Write authoritative schema.json
+    # 6. Authoritative schema.json
     schema_dict = {
         "required_columns": [
             "gateway_id",
@@ -138,12 +189,21 @@ def train_candidate(
     )
 
     # 7. Write scorer_identity.txt with cryptographic binding
-    baseline_path = pathlib.Path("baseline_3sigma.py")
-    if baseline_path.exists():
-        baseline_sha = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
-        scorer_identity_content = f"baseline_3sigma.py:sha256:{baseline_sha}\n"
+    if candidate_version == "v0002":
+        scorer_path = pathlib.Path("app/model/scorer.py")
+        if scorer_path.exists():
+            scorer_sha = hashlib.sha256(scorer_path.read_bytes()).hexdigest()
+            scorer_identity_content = f"WeightedMultiSignalScorer:app/model/scorer.py:sha256:{scorer_sha}\n"
+        else:
+            scorer_identity_content = "WeightedMultiSignalScorer:frozen_reference\n"
     else:
-        scorer_identity_content = "baseline_3sigma.py:frozen_reference\n"
+        baseline_path = pathlib.Path("baseline_3sigma.py")
+        if baseline_path.exists():
+            baseline_sha = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
+            scorer_identity_content = f"baseline_3sigma.py:sha256:{baseline_sha}\n"
+        else:
+            scorer_identity_content = "baseline_3sigma.py:frozen_reference\n"
+
     (target_dir / "scorer_identity.txt").write_text(
         scorer_identity_content, encoding="utf-8"
     )
@@ -154,12 +214,12 @@ def train_candidate(
     # 9. Write manifest.json
     manifest_data = {
         "model_version": candidate_version,
-        "model_type": "baseline_3sigma_anomaly",
-        "feature_version": "baseline-v1",
+        "model_type": model_type,
+        "feature_version": feature_version,
         "schema_version": "telemetry-v1",
         "artifact_hash": artifact_hash,
         "evaluation_mode": "cost_backtest",
-        "evidence_quality": "baseline",
+        "evidence_quality": evidence_quality,
         "evaluation_scope": "precision_biased_sample",
         "training_period": [
             "2025-08-01",
@@ -175,11 +235,17 @@ def train_candidate(
     # 10. Write metrics.json
     metrics_data = {
         "model_version": candidate_version,
+        "model_type": model_type,
         "training_master_count": len(master_df),
         "training_field_visits_count": len(dev_visits),
+        "holdout_gateways_excluded": len(holdout_ids),
+        "training_development_gateways": len(dev_gateways),
         "training_period": ["2025-08-01", "2026-01-31"],
         "status": "materialized",
     }
+    if candidate_version == "v0002":
+        metrics_data["weights"] = config_data.get("weights", {})
+
     (target_dir / "metrics.json").write_text(
         json.dumps(metrics_data, indent=2), encoding="utf-8"
     )

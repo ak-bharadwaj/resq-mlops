@@ -28,7 +28,7 @@ from app.data.loader import (
 )
 from app.data.quality import SourceCompletenessError, check_source_completeness
 from app.data.schema import SchemaValidationError, TelemetrySchemaContract
-from app.model.scorer import Baseline3SigmaScorer
+from app.model.scorer import Baseline3SigmaScorer, get_scorer_for_config
 
 
 class ModelArtifactError(Exception):
@@ -273,13 +273,9 @@ def predict_week(
             f"exceeds threshold. Entering BLOCK_FEATURES."
         )
 
-    # 7. Model Scoring via Baseline3SigmaScorer (Rule 9 / v0001)
-    scorer = Baseline3SigmaScorer(
-        baseline_days=baseline_days,
-        recent_days=recent_days,
-        sigma=sigma,
-        metrics=metrics,
-    )
+    # 7. Model Scoring via Polymorphic Scorer (Rule 9)
+    # Runtime prediction serves the full eligible operational fleet (v25 Section 8: without changing prediction path)
+    scorer = get_scorer_for_config(config, allow_holdout=True)
     scored_records = scorer.score_telemetry(
         telemetry_df=telemetry_df,
         eligible_gateways=eligible_gateways,

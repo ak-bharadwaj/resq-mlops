@@ -1,0 +1,17 @@
+{
+  "model_version": "v0002",
+  "model_type": "deterministic_weighted_multisignal",
+  "training_master_count": 332,
+  "training_field_visits_count": 628,
+  "holdout_gateways_excluded": 59,
+  "training_development_gateways": 273,
+  "training_period": [
+    "2025-08-01",
+    "2026-01-31"
+  ],
+  "status": "materialized",
+  "weights": {
+    "w_anomaly": 0.7,
+    "w_silence": 0.3
+  }
+}
