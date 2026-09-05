@@ -2,8 +2,9 @@
                     WAVE 3 EXECUTION EVIDENCE ARTIFACT                          
                         (TASKS 8, 9, 10, 11)                                    
 ================================================================================
-Execution Date/Time (UTC) : 2026-09-05T09:54:00.659692+00:00
-Git Implementation Commit : c8e4f9a8f127f494a52ab78f3deeff7ed38c926b
+Execution Date/Time (UTC) : 2026-09-05T10:01:35.441652+00:00
+Git Implementation Commit : b4a4b00db9e21a4dc6b306da876923805324b508
+Base Implementation Commit: c8e4f9a8f127f494a52ab78f3deeff7ed38c926b
 Git Branch                : main
 
 Python Version            : 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
@@ -23,20 +24,24 @@ hypothesis profile 'default'
 rootdir: c:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collecting ... collected 10 items
+collecting ... collected 14 items
 
-tests/unit/test_schema_contract.py::test_model_schema_precedence_over_monitoring_baseline PASSED [ 10%]
-tests/unit/test_schema_contract.py::test_naive_timestamp_strings_rejected PASSED [ 20%]
-tests/unit/test_schema_contract.py::test_naive_datetime64_objects_rejected PASSED [ 30%]
-tests/unit/test_schema_contract.py::test_non_utc_timezone_rejected PASSED [ 40%]
-tests/unit/test_schema_contract.py::test_valid_utc_timestamps_accepted PASSED [ 50%]
-tests/unit/test_schema_contract.py::test_hourly_grain_validation PASSED  [ 60%]
-tests/unit/test_schema_contract.py::test_mandatory_non_null_checks PASSED [ 70%]
-tests/unit/test_schema_contract.py::test_range_checks_declared_fields PASSED [ 80%]
-tests/unit/test_schema_contract.py::test_real_supplied_telemetry_partition_validation PASSED [ 90%]
-tests/unit/test_schema_contract.py::test_anti_fake_schema_cannot_be_bypassed PASSED [100%]
+tests/unit/test_schema_contract.py::test_model_schema_precedence_over_monitoring_baseline PASSED [  7%]
+tests/unit/test_schema_contract.py::test_naive_timestamp_strings_rejected PASSED [ 14%]
+tests/unit/test_schema_contract.py::test_naive_datetime64_objects_rejected PASSED [ 21%]
+tests/unit/test_schema_contract.py::test_non_utc_timezone_rejected PASSED [ 28%]
+tests/unit/test_schema_contract.py::test_valid_utc_timestamps_accepted PASSED [ 35%]
+tests/unit/test_schema_contract.py::test_hourly_grain_validation PASSED  [ 42%]
+tests/unit/test_schema_contract.py::test_mandatory_non_null_checks PASSED [ 50%]
+tests/unit/test_schema_contract.py::test_range_checks_declared_fields PASSED [ 57%]
+tests/unit/test_schema_contract.py::test_real_supplied_telemetry_partition_validation PASSED [ 64%]
+tests/unit/test_schema_contract.py::test_anti_fake_schema_cannot_be_bypassed PASSED [ 71%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_schema_missing PASSED [ 78%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_schema_corrupt PASSED [ 85%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_registry_corrupt PASSED [ 92%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_model_dir_missing PASSED [100%]
 
-============================= 10 passed in 2.75s ==============================
+============================= 14 passed in 2.06s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 2: Task 9 Missing-Data Reason Taxonomy Tests
@@ -60,7 +65,7 @@ tests/unit/test_taxonomy.py::test_anti_confusion_insufficient_history_vs_feature
 tests/unit/test_taxonomy.py::test_zero_telemetry_never_receives_invented_score PASSED [ 83%]
 tests/unit/test_taxonomy.py::test_real_data_taxonomy_audit PASSED        [100%]
 
-============================== 6 passed in 4.67s ==============================
+============================== 6 passed in 3.83s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 3: Task 10 Source Completeness Guard Tests
@@ -84,7 +89,7 @@ tests/unit/test_source_completeness.py::test_dynamic_expected_hours_derivation_a
 tests/unit/test_source_completeness.py::test_pre_feature_execution_guard_blocks_downstream_computation PASSED [ 83%]
 tests/unit/test_source_completeness.py::test_real_data_source_completeness_audit PASSED [100%]
 
-============================== 6 passed in 3.57s ==============================
+============================== 6 passed in 3.49s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 4: Task 11 Universal CLI --data Path Contract Tests
@@ -105,10 +110,10 @@ tests/unit/test_cli_data_path.py::test_cli_predict_propagation_to_alternate_dire
 tests/unit/test_cli_data_path.py::test_cli_predict_rejects_nonexistent_directory PASSED [ 33%]
 tests/unit/test_cli_data_path.py::test_cli_make_submission_propagation_to_alternate_directory PASSED [ 50%]
 tests/unit/test_cli_data_path.py::test_cli_make_submission_rejects_nonexistent_directory PASSED [ 66%]
-tests/unit/test_cli_data_path.py::test_cli_train_data_flag_and_validation PASSED [ 83%]
+tests/unit/test_cli_data_path.py::test_cli_train_data_flag_and_path_validation PASSED [ 83%]
 tests/unit/test_cli_data_path.py::test_underlying_loaders_propagate_data_dir PASSED [100%]
 
-============================== 6 passed in 3.92s ==============================
+============================== 6 passed in 3.93s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 5: Wave 3 Connected Integration (Tasks 8 <-> 9 <-> 10 <-> 11)
@@ -128,7 +133,7 @@ collecting ... collected 2 items
 tests/integration/test_wave3_integration.py::test_wave3_connected_pipeline_end_to_end PASSED [ 50%]
 tests/integration/test_wave3_integration.py::test_wave3_systemic_outage_trips_block_features PASSED [100%]
 
-============================== 2 passed in 0.63s ==============================
+============================== 2 passed in 0.68s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 6: Tasks 2-7 Parallel Wave Integration
@@ -148,7 +153,7 @@ collecting ... collected 2 items
 tests/integration/test_parallel_wave_integration.py::test_parallel_wave_e2e_connected_pipeline PASSED [ 50%]
 tests/integration/test_parallel_wave_integration.py::test_parallel_wave_synthetic_e2e_pipeline PASSED [100%]
 
-============================= 2 passed in 10.96s ==============================
+============================== 2 passed in 9.98s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 7: Full Regression Suite (All Tests)
@@ -163,7 +168,7 @@ hypothesis profile 'default'
 rootdir: c:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collecting ... collected 143 items
+collecting ... collected 147 items
 
 tests/integration/test_parallel_wave_integration.py::test_parallel_wave_e2e_connected_pipeline PASSED [  0%]
 tests/integration/test_parallel_wave_integration.py::test_parallel_wave_synthetic_e2e_pipeline PASSED [  1%]
@@ -175,126 +180,130 @@ tests/unit/test_cli_data_path.py::test_cli_predict_propagation_to_alternate_dire
 tests/unit/test_cli_data_path.py::test_cli_predict_rejects_nonexistent_directory PASSED [  5%]
 tests/unit/test_cli_data_path.py::test_cli_make_submission_propagation_to_alternate_directory PASSED [  6%]
 tests/unit/test_cli_data_path.py::test_cli_make_submission_rejects_nonexistent_directory PASSED [  6%]
-tests/unit/test_cli_data_path.py::test_cli_train_data_flag_and_validation PASSED [  7%]
+tests/unit/test_cli_data_path.py::test_cli_train_data_flag_and_path_validation PASSED [  7%]
 tests/unit/test_cli_data_path.py::test_underlying_loaders_propagate_data_dir PASSED [  8%]
-tests/unit/test_duplicates.py::test_duplicate_policy_empty_dataframe PASSED [  9%]
+tests/unit/test_duplicates.py::test_duplicate_policy_empty_dataframe PASSED [  8%]
 tests/unit/test_duplicates.py::test_duplicate_policy_no_duplicates_emits_no_logs PASSED [  9%]
 tests/unit/test_duplicates.py::test_master_exact_duplicates_collapse_and_log PASSED [ 10%]
-tests/unit/test_duplicates.py::test_master_equivalent_raw_ids_collapse_and_log PASSED [ 11%]
+tests/unit/test_duplicates.py::test_master_equivalent_raw_ids_collapse_and_log PASSED [ 10%]
 tests/unit/test_duplicates.py::test_master_conflicting_attributes_raise_conflicting_record_error PASSED [ 11%]
 tests/unit/test_duplicates.py::test_master_conflicting_meters_blocks_ingestion PASSED [ 12%]
-tests/unit/test_duplicates.py::test_field_visits_exact_duplicates_collapse_and_log PASSED [ 13%]
+tests/unit/test_duplicates.py::test_field_visits_exact_duplicates_collapse_and_log PASSED [ 12%]
 tests/unit/test_duplicates.py::test_field_visits_equivalent_duplicates_collapse_and_log PASSED [ 13%]
 tests/unit/test_duplicates.py::test_field_visits_conflicting_visit_id_raises_conflicting_record_error PASSED [ 14%]
-tests/unit/test_duplicates.py::test_field_visits_conflicting_gateway_for_same_visit_id_blocks PASSED [ 15%]
-tests/unit/test_duplicates.py::test_telemetry_exact_duplicates_collapse_and_log PASSED [ 16%]
+tests/unit/test_duplicates.py::test_field_visits_conflicting_gateway_for_same_visit_id_blocks PASSED [ 14%]
+tests/unit/test_duplicates.py::test_telemetry_exact_duplicates_collapse_and_log PASSED [ 15%]
 tests/unit/test_duplicates.py::test_telemetry_equivalent_raw_formatting_collapses_and_logs PASSED [ 16%]
 tests/unit/test_duplicates.py::test_telemetry_conflicting_measurements_raise_conflicting_record_error PASSED [ 17%]
-tests/unit/test_duplicates.py::test_telemetry_conflicting_multiple_timestamps_reports_sample PASSED [ 18%]
+tests/unit/test_duplicates.py::test_telemetry_conflicting_multiple_timestamps_reports_sample PASSED [ 17%]
 tests/unit/test_duplicates.py::test_anti_silent_selection_never_picks_arbitrary_winner_or_averages PASSED [ 18%]
 tests/unit/test_duplicates.py::test_real_workspace_datasets_satisfy_duplicate_policy PASSED [ 19%]
-tests/unit/test_duplicates.py::test_connected_pipeline_injected_equivalent_duplicates_resolve PASSED [ 20%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_equivalent_duplicates_resolve PASSED [ 19%]
 tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_master_blocks_pipeline PASSED [ 20%]
 tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_visits_blocks_pipeline PASSED [ 21%]
-tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_telemetry_blocks_pipeline PASSED [ 22%]
-tests/unit/test_eligibility.py::test_eligibility_boundary_cases PASSED   [ 23%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_telemetry_blocks_pipeline PASSED [ 21%]
+tests/unit/test_eligibility.py::test_eligibility_boundary_cases PASSED   [ 22%]
 tests/unit/test_eligibility.py::test_eligibility_real_data_2026_02_02 PASSED [ 23%]
-tests/unit/test_eligibility.py::test_eligibility_anti_fake_telemetry_isolation PASSED [ 24%]
-tests/unit/test_eligibility.py::test_eligibility_preserves_canonical_id_and_master_attributes PASSED [ 25%]
+tests/unit/test_eligibility.py::test_eligibility_anti_fake_telemetry_isolation PASSED [ 23%]
+tests/unit/test_eligibility.py::test_eligibility_preserves_canonical_id_and_master_attributes PASSED [ 24%]
 tests/unit/test_eligibility.py::test_eligibility_accepts_string_and_datetime_monday_inputs PASSED [ 25%]
-tests/unit/test_field_visits.py::test_verify_field_visits_encoding_utf8 PASSED [ 26%]
-tests/unit/test_field_visits.py::test_verify_field_visits_encoding_cp1252 PASSED [ 27%]
+tests/unit/test_field_visits.py::test_verify_field_visits_encoding_utf8 PASSED [ 25%]
+tests/unit/test_field_visits.py::test_verify_field_visits_encoding_cp1252 PASSED [ 26%]
 tests/unit/test_field_visits.py::test_verify_field_visits_encoding_unsupported_bytes_raises_error PASSED [ 27%]
-tests/unit/test_field_visits.py::test_verify_field_visits_encoding_missing_file_raises_filenotfound PASSED [ 28%]
-tests/unit/test_field_visits.py::test_field_visits_schema_contract_valid PASSED [ 29%]
-tests/unit/test_field_visits.py::test_field_visits_schema_contract_missing_columns PASSED [ 30%]
-tests/unit/test_field_visits.py::test_field_visits_schema_contract_null_mandatory_fields PASSED [ 30%]
-tests/unit/test_field_visits.py::test_field_visits_schema_contract_invalid_date_ordering PASSED [ 31%]
-tests/unit/test_field_visits.py::test_field_visits_schema_contract_negative_technician_hours PASSED [ 32%]
-tests/unit/test_field_visits.py::test_load_field_visits_real_data PASSED [ 32%]
-tests/unit/test_field_visits.py::test_load_field_visits_string_dtypes_preserved PASSED [ 33%]
-tests/unit/test_field_visits.py::test_load_field_visits_canonicalize_gateway_id_integration PASSED [ 34%]
+tests/unit/test_field_visits.py::test_verify_field_visits_encoding_missing_file_raises_filenotfound PASSED [ 27%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_valid PASSED [ 28%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_missing_columns PASSED [ 29%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_null_mandatory_fields PASSED [ 29%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_invalid_date_ordering PASSED [ 30%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_negative_technician_hours PASSED [ 31%]
+tests/unit/test_field_visits.py::test_load_field_visits_real_data PASSED [ 31%]
+tests/unit/test_field_visits.py::test_load_field_visits_string_dtypes_preserved PASSED [ 32%]
+tests/unit/test_field_visits.py::test_load_field_visits_canonicalize_gateway_id_integration PASSED [ 33%]
 tests/unit/test_field_visits.py::test_load_field_visits_equivalent_duplicate_collapse PASSED [ 34%]
-tests/unit/test_field_visits.py::test_load_field_visits_conflicting_visit_id_blocks PASSED [ 35%]
-tests/unit/test_field_visits.py::test_load_field_visits_invalid_date_order_blocks PASSED [ 36%]
-tests/unit/test_field_visits.py::test_load_field_visits_negative_technician_hours_blocks PASSED [ 37%]
-tests/unit/test_field_visits.py::test_load_field_visits_missing_file_raises_filenotfound PASSED [ 37%]
-tests/unit/test_field_visits.py::test_anti_fake_field_visits_duplicate_safety PASSED [ 38%]
-tests/unit/test_field_visits.py::test_anti_fake_field_visits_schema_validation_fails_closed PASSED [ 39%]
-tests/unit/test_gateway_master.py::test_gateway_master_real_data PASSED  [ 39%]
-tests/unit/test_gateway_master.py::test_gateway_master_cp1252_german_characters PASSED [ 40%]
-tests/unit/test_gateway_master.py::test_gateway_master_schema_contract_validation PASSED [ 41%]
-tests/unit/test_gateway_master.py::test_gateway_master_loader_invalid_date_order_blocks PASSED [ 41%]
-tests/unit/test_gateway_master.py::test_gateway_master_loader_negative_meters_blocks PASSED [ 42%]
-tests/unit/test_gateway_master.py::test_gateway_master_equivalent_representation_collapsing PASSED [ 43%]
-tests/unit/test_gateway_master.py::test_gateway_master_conflicting_attributes_blocking PASSED [ 44%]
-tests/unit/test_gateway_master.py::test_gateway_master_leading_zero_preservation PASSED [ 44%]
-tests/unit/test_gateway_master.py::test_anti_fake_gateway_master_validation_and_canonicalization PASSED [ 45%]
-tests/unit/test_id_normalization.py::test_canonicalize_bare_uppercase PASSED [ 46%]
-tests/unit/test_id_normalization.py::test_canonicalize_bare_lowercase PASSED [ 46%]
-tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_uppercase PASSED [ 47%]
-tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_lowercase PASSED [ 48%]
-tests/unit/test_id_normalization.py::test_canonicalize_leading_trailing_whitespace PASSED [ 48%]
-tests/unit/test_id_normalization.py::test_canonicalize_mixed_case PASSED [ 49%]
-tests/unit/test_id_normalization.py::test_multiple_accepted_representations_produce_same_canonical_id PASSED [ 50%]
-tests/unit/test_id_normalization.py::test_canonicalize_rejects_null_and_nan PASSED [ 51%]
-tests/unit/test_id_normalization.py::test_canonicalize_rejects_empty_string PASSED [ 51%]
-tests/unit/test_id_normalization.py::test_canonicalize_rejects_whitespace_only PASSED [ 52%]
-tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_hex_characters PASSED [ 53%]
-tests/unit/test_id_normalization.py::test_canonicalize_rejects_incorrect_length PASSED [ 53%]
-tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_scalar_types PASSED [ 54%]
-tests/unit/test_id_normalization.py::test_single_normalization_path_ast_enforcement PASSED [ 55%]
-tests/unit/test_id_normalization.py::test_gateway_master_loader_canonicalization PASSED [ 55%]
-tests/unit/test_id_normalization.py::test_field_visits_loader_canonicalization PASSED [ 56%]
-tests/unit/test_id_normalization.py::test_telemetry_loader_canonicalization PASSED [ 57%]
-tests/unit/test_id_normalization.py::test_downstream_join_on_canonical_representation PASSED [ 58%]
-tests/unit/test_id_normalization.py::test_collision_safety_master_equivalent_representations PASSED [ 58%]
-tests/unit/test_id_normalization.py::test_collision_safety_master_distinct_records_block PASSED [ 59%]
-tests/unit/test_id_normalization.py::test_collision_safety_telemetry_equivalent_representations PASSED [ 60%]
-tests/unit/test_id_normalization.py::test_collision_safety_telemetry_distinct_records_block PASSED [ 60%]
-tests/unit/test_id_normalization.py::test_collision_safety_field_visits_conflicting_visit_id_blocks PASSED [ 61%]
-tests/unit/test_id_normalization.py::test_loader_numeric_gateway_id_leading_zeros_preserved PASSED [ 62%]
-tests/unit/test_id_normalization.py::test_telemetry_loader_column_projection_with_canonical_id PASSED [ 62%]
-tests/unit/test_id_normalization.py::test_telemetry_duplicate_resolution_with_raw_ts_utc_differences PASSED [ 63%]
-tests/unit/test_id_normalization.py::test_resolve_telemetry_duplicates_infers_canonical_id PASSED [ 64%]
-tests/unit/test_id_normalization.py::test_telemetry_loader_real_data_canonicalization PASSED [ 65%]
-tests/unit/test_id_normalization.py::test_canonicalize_leading_zero_id PASSED [ 65%]
-tests/unit/test_id_normalization.py::test_collision_safety_field_visits_equivalent_representations PASSED [ 66%]
-tests/unit/test_id_normalization.py::test_anti_fake_loader_fails_without_canonicalization PASSED [ 67%]
-tests/unit/test_id_normalization.py::test_anti_fake_raw_formatting_differences_do_not_create_false_conflict PASSED [ 67%]
-tests/unit/test_id_normalization.py::test_anti_fake_semantic_differences_do_create_conflict PASSED [ 68%]
-tests/unit/test_id_normalization.py::test_real_data_gateway_master_and_field_visits_canonicalization PASSED [ 69%]
-tests/unit/test_id_normalization.py::test_e2e_cli_connectivity_with_canonical_id PASSED [ 69%]
-tests/unit/test_loaders_and_encoding.py::test_gateway_master_cp1252_synthetic_german_characters PASSED [ 70%]
-tests/unit/test_loaders_and_encoding.py::test_gateway_master_real_data PASSED [ 71%]
-tests/unit/test_loaders_and_encoding.py::test_field_visits_real_data PASSED [ 72%]
-tests/unit/test_offline_contract.py::test_runtime_offline_contract PASSED [ 72%]
-tests/unit/test_schema_and_reasons.py::test_missing_data_reasons_distinct PASSED [ 73%]
-tests/unit/test_schema_and_reasons.py::test_zero_telemetry_vs_recently_silent PASSED [ 74%]
-tests/unit/test_schema_and_reasons.py::test_schema_validation_success PASSED [ 74%]
-tests/unit/test_schema_and_reasons.py::test_schema_validation_missing_columns PASSED [ 75%]
-tests/unit/test_schema_and_reasons.py::test_source_completeness_guard_trips_on_systemic_absence PASSED [ 76%]
-tests/unit/test_schema_contract.py::test_model_schema_precedence_over_monitoring_baseline PASSED [ 76%]
-tests/unit/test_schema_contract.py::test_naive_timestamp_strings_rejected PASSED [ 77%]
-tests/unit/test_schema_contract.py::test_naive_datetime64_objects_rejected PASSED [ 78%]
-tests/unit/test_schema_contract.py::test_non_utc_timezone_rejected PASSED [ 79%]
-tests/unit/test_schema_contract.py::test_valid_utc_timestamps_accepted PASSED [ 79%]
-tests/unit/test_schema_contract.py::test_hourly_grain_validation PASSED  [ 80%]
-tests/unit/test_schema_contract.py::test_mandatory_non_null_checks PASSED [ 81%]
-tests/unit/test_schema_contract.py::test_range_checks_declared_fields PASSED [ 81%]
-tests/unit/test_schema_contract.py::test_real_supplied_telemetry_partition_validation PASSED [ 82%]
-tests/unit/test_schema_contract.py::test_anti_fake_schema_cannot_be_bypassed PASSED [ 83%]
-tests/unit/test_source_completeness.py::test_synthetic_fleet_breach_trips_block_features PASSED [ 83%]
-tests/unit/test_source_completeness.py::test_synthetic_fleet_healthy_case_passes PASSED [ 84%]
+tests/unit/test_field_visits.py::test_load_field_visits_conflicting_visit_id_blocks PASSED [ 34%]
+tests/unit/test_field_visits.py::test_load_field_visits_invalid_date_order_blocks PASSED [ 35%]
+tests/unit/test_field_visits.py::test_load_field_visits_negative_technician_hours_blocks PASSED [ 36%]
+tests/unit/test_field_visits.py::test_load_field_visits_missing_file_raises_filenotfound PASSED [ 36%]
+tests/unit/test_field_visits.py::test_anti_fake_field_visits_duplicate_safety PASSED [ 37%]
+tests/unit/test_field_visits.py::test_anti_fake_field_visits_schema_validation_fails_closed PASSED [ 38%]
+tests/unit/test_gateway_master.py::test_gateway_master_real_data PASSED  [ 38%]
+tests/unit/test_gateway_master.py::test_gateway_master_cp1252_german_characters PASSED [ 39%]
+tests/unit/test_gateway_master.py::test_gateway_master_schema_contract_validation PASSED [ 40%]
+tests/unit/test_gateway_master.py::test_gateway_master_loader_invalid_date_order_blocks PASSED [ 40%]
+tests/unit/test_gateway_master.py::test_gateway_master_loader_negative_meters_blocks PASSED [ 41%]
+tests/unit/test_gateway_master.py::test_gateway_master_equivalent_representation_collapsing PASSED [ 42%]
+tests/unit/test_gateway_master.py::test_gateway_master_conflicting_attributes_blocking PASSED [ 42%]
+tests/unit/test_gateway_master.py::test_gateway_master_leading_zero_preservation PASSED [ 43%]
+tests/unit/test_gateway_master.py::test_anti_fake_gateway_master_validation_and_canonicalization PASSED [ 44%]
+tests/unit/test_id_normalization.py::test_canonicalize_bare_uppercase PASSED [ 44%]
+tests/unit/test_id_normalization.py::test_canonicalize_bare_lowercase PASSED [ 45%]
+tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_uppercase PASSED [ 46%]
+tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_lowercase PASSED [ 46%]
+tests/unit/test_id_normalization.py::test_canonicalize_leading_trailing_whitespace PASSED [ 47%]
+tests/unit/test_id_normalization.py::test_canonicalize_mixed_case PASSED [ 48%]
+tests/unit/test_id_normalization.py::test_multiple_accepted_representations_produce_same_canonical_id PASSED [ 48%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_null_and_nan PASSED [ 49%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_empty_string PASSED [ 50%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_whitespace_only PASSED [ 51%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_hex_characters PASSED [ 51%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_incorrect_length PASSED [ 52%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_scalar_types PASSED [ 53%]
+tests/unit/test_id_normalization.py::test_single_normalization_path_ast_enforcement PASSED [ 53%]
+tests/unit/test_id_normalization.py::test_gateway_master_loader_canonicalization PASSED [ 54%]
+tests/unit/test_id_normalization.py::test_field_visits_loader_canonicalization PASSED [ 55%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_canonicalization PASSED [ 55%]
+tests/unit/test_id_normalization.py::test_downstream_join_on_canonical_representation PASSED [ 56%]
+tests/unit/test_id_normalization.py::test_collision_safety_master_equivalent_representations PASSED [ 57%]
+tests/unit/test_id_normalization.py::test_collision_safety_master_distinct_records_block PASSED [ 57%]
+tests/unit/test_id_normalization.py::test_collision_safety_telemetry_equivalent_representations PASSED [ 58%]
+tests/unit/test_id_normalization.py::test_collision_safety_telemetry_distinct_records_block PASSED [ 59%]
+tests/unit/test_id_normalization.py::test_collision_safety_field_visits_conflicting_visit_id_blocks PASSED [ 59%]
+tests/unit/test_id_normalization.py::test_loader_numeric_gateway_id_leading_zeros_preserved PASSED [ 60%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_column_projection_with_canonical_id PASSED [ 61%]
+tests/unit/test_id_normalization.py::test_telemetry_duplicate_resolution_with_raw_ts_utc_differences PASSED [ 61%]
+tests/unit/test_id_normalization.py::test_resolve_telemetry_duplicates_infers_canonical_id PASSED [ 62%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_real_data_canonicalization PASSED [ 63%]
+tests/unit/test_id_normalization.py::test_canonicalize_leading_zero_id PASSED [ 63%]
+tests/unit/test_id_normalization.py::test_collision_safety_field_visits_equivalent_representations PASSED [ 64%]
+tests/unit/test_id_normalization.py::test_anti_fake_loader_fails_without_canonicalization PASSED [ 65%]
+tests/unit/test_id_normalization.py::test_anti_fake_raw_formatting_differences_do_not_create_false_conflict PASSED [ 65%]
+tests/unit/test_id_normalization.py::test_anti_fake_semantic_differences_do_create_conflict PASSED [ 66%]
+tests/unit/test_id_normalization.py::test_real_data_gateway_master_and_field_visits_canonicalization PASSED [ 67%]
+tests/unit/test_id_normalization.py::test_e2e_cli_connectivity_with_canonical_id PASSED [ 68%]
+tests/unit/test_loaders_and_encoding.py::test_gateway_master_cp1252_synthetic_german_characters PASSED [ 68%]
+tests/unit/test_loaders_and_encoding.py::test_gateway_master_real_data PASSED [ 69%]
+tests/unit/test_loaders_and_encoding.py::test_field_visits_real_data PASSED [ 70%]
+tests/unit/test_offline_contract.py::test_runtime_offline_contract PASSED [ 70%]
+tests/unit/test_schema_and_reasons.py::test_missing_data_reasons_distinct PASSED [ 71%]
+tests/unit/test_schema_and_reasons.py::test_zero_telemetry_vs_recently_silent PASSED [ 72%]
+tests/unit/test_schema_and_reasons.py::test_schema_validation_success PASSED [ 72%]
+tests/unit/test_schema_and_reasons.py::test_schema_validation_missing_columns PASSED [ 73%]
+tests/unit/test_schema_and_reasons.py::test_source_completeness_guard_trips_on_systemic_absence PASSED [ 74%]
+tests/unit/test_schema_contract.py::test_model_schema_precedence_over_monitoring_baseline PASSED [ 74%]
+tests/unit/test_schema_contract.py::test_naive_timestamp_strings_rejected PASSED [ 75%]
+tests/unit/test_schema_contract.py::test_naive_datetime64_objects_rejected PASSED [ 76%]
+tests/unit/test_schema_contract.py::test_non_utc_timezone_rejected PASSED [ 76%]
+tests/unit/test_schema_contract.py::test_valid_utc_timestamps_accepted PASSED [ 77%]
+tests/unit/test_schema_contract.py::test_hourly_grain_validation PASSED  [ 78%]
+tests/unit/test_schema_contract.py::test_mandatory_non_null_checks PASSED [ 78%]
+tests/unit/test_schema_contract.py::test_range_checks_declared_fields PASSED [ 79%]
+tests/unit/test_schema_contract.py::test_real_supplied_telemetry_partition_validation PASSED [ 80%]
+tests/unit/test_schema_contract.py::test_anti_fake_schema_cannot_be_bypassed PASSED [ 80%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_schema_missing PASSED [ 81%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_schema_corrupt PASSED [ 82%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_registry_corrupt PASSED [ 82%]
+tests/unit/test_schema_contract.py::test_load_active_schema_fails_closed_when_model_dir_missing PASSED [ 83%]
+tests/unit/test_source_completeness.py::test_synthetic_fleet_breach_trips_block_features PASSED [ 84%]
+tests/unit/test_source_completeness.py::test_synthetic_fleet_healthy_case_passes PASSED [ 85%]
 tests/unit/test_source_completeness.py::test_individual_missing_gateway_does_not_falsely_trigger_fleet_block PASSED [ 85%]
 tests/unit/test_source_completeness.py::test_dynamic_expected_hours_derivation_across_windows PASSED [ 86%]
-tests/unit/test_source_completeness.py::test_pre_feature_execution_guard_blocks_downstream_computation PASSED [ 86%]
+tests/unit/test_source_completeness.py::test_pre_feature_execution_guard_blocks_downstream_computation PASSED [ 87%]
 tests/unit/test_source_completeness.py::test_real_data_source_completeness_audit PASSED [ 87%]
 tests/unit/test_taxonomy.py::test_taxonomy_codes_strictly_distinct PASSED [ 88%]
-tests/unit/test_taxonomy.py::test_anti_confusion_date_ineligible_vs_no_telemetry PASSED [ 88%]
+tests/unit/test_taxonomy.py::test_anti_confusion_date_ineligible_vs_no_telemetry PASSED [ 89%]
 tests/unit/test_taxonomy.py::test_anti_confusion_zero_telemetry_vs_recently_silent PASSED [ 89%]
 tests/unit/test_taxonomy.py::test_anti_confusion_insufficient_history_vs_feature_data PASSED [ 90%]
-tests/unit/test_taxonomy.py::test_zero_telemetry_never_receives_invented_score PASSED [ 90%]
+tests/unit/test_taxonomy.py::test_zero_telemetry_never_receives_invented_score PASSED [ 91%]
 tests/unit/test_taxonomy.py::test_real_data_taxonomy_audit PASSED        [ 91%]
 tests/unit/test_telemetry_firewall.py::test_exact_boundary_cutoff_exclusion PASSED [ 92%]
 tests/unit/test_telemetry_firewall.py::test_start_window_bound PASSED    [ 93%]
@@ -309,7 +318,7 @@ tests/unit/test_telemetry_firewall.py::test_load_telemetry_window_enforces_schem
 tests/unit/test_telemetry_firewall.py::test_telemetry_schema_contract_validation PASSED [ 99%]
 tests/unit/test_utc_cutoff.py::test_production_load_telemetry_window_utc_boundary PASSED [100%]
 
-============================ 143 passed in 36.90s =============================
+============================ 147 passed in 33.18s =============================
 
 --------------------------------------------------------------------------------
 COMMAND 8: CLI scripts/predict.py --data ./data Verification
@@ -333,19 +342,20 @@ EXIT CODE : 0
 
 ================================================================================
 VERIFICATION SUMMARY:
-- Task 8 Schema Contract tests      : 10 passed / 10 collected, 0 failed, 0 skipped
+- Task 8 Schema Contract tests      : 14 passed / 14 collected, 0 failed, 0 skipped
 - Task 9 Taxonomy tests             : 6 passed / 6 collected, 0 failed, 0 skipped
 - Task 10 Source Completeness tests : 6 passed / 6 collected, 0 failed, 0 skipped
 - Task 11 CLI --data Path tests     : 6 passed / 6 collected, 0 failed, 0 skipped
 - Wave 3 Connected Integration      : 2 passed / 2 collected, 0 failed, 0 skipped
 - Tasks 2-7 Parallel Integration    : 2 passed / 2 collected, 0 failed, 0 skipped
-- Full Regression Suite             : 143 passed / 143 collected, 0 failed, 0 skipped
+- Full Regression Suite             : 147 passed / 147 collected, 0 failed, 0 skipped
 - CLI scripts/predict.py --data     : Exit code 0, cleanly ingested data/
 - CLI scripts/make_submission.py    : Exit code 0, cleanly ingested data/
 ================================================================================
 CONTRACT VERIFICATION MATRIX:
 - Telemetry Schema Contract Enforcement         : PASS
 - Model Schema Precedence over Baseline         : PASS
+- Fail-Closed Schema Authority (No Fail-Open)   : PASS
 - Reject Naive Timestamps (No Silent UTC)       : PASS
 - Reject Non-UTC Timezones                      : PASS
 - Hourly Grain & Mandatory Non-Null Invariants  : PASS
@@ -362,6 +372,7 @@ CONTRACT VERIFICATION MATRIX:
 - Pre-Feature Execution Guard Integrity         : PASS
 - CLI --data PATH Universal Support             : PASS
 - CLI --data Rejects Non-Existent Path Non-Zero : PASS
+- CLI train.py Phase Boundary Explicit          : PASS
 - Alternate Data Directory End-to-End Pipeline  : PASS
 - Canonical Gateway-ID Downstream Joins         : PASS
 - Tasks 1-7 Full Regression Integrity           : PASS
