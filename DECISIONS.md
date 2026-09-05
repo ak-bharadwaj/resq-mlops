@@ -64,3 +64,12 @@ Written for the Operations Manager and Engineering Leadership.
     - **Lifecycle Safety**: Despite attractive historical backtest numbers, the candidate fails to generalize to unseen hardware in the fleet holdout. Promoting `v0002` would risk regressing service quality on unobserved regional hardware. The gate operated exactly as designed: rejecting unproven candidates and safeguarding production.
   - **Production Invariant**: `registry/active.json` is byte-for-byte unchanged; `v0001` remains active in production and is served for all submission runs.
 
+## 9. Rollback Mechanism & Deterministic Replay Proof (Task 16)
+- **Chosen**: Two-phase rollback lifecycle combining target package pre-validation (manifest integrity, schema contract, model configuration, scorer identity, and smoke prediction), atomic filesystem replacement (`os.replace`) of `registry/active.json`, and cryptographic replay equality verification (`replay_hash`). Tested via committed lifecycle fixture `v_promotable` with round-trip proof back to `v0001`.
+- **Alternative Rejected**: Direct in-place mutation of active pointer without prior target validation, relying on Git revert / code deployment for rollbacks, or altering the real candidate `v0002` rejection verdict.
+- **Rationale**:
+  - **Pre-Validation Safety Guard**: Attempting to rollback to a non-existent or corrupted model package (e.g. missing `manifest.json` or invalid schema) fails closed prior to state mutation (`RollbackTargetValidationError`), leaving `registry/active.json` byte-for-byte untouched.
+  - **Deterministic Replay Equality**: The restored `v0001` production model produces the exact, bit-for-bit identical prediction list and replay hash (`sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838`) as the original pre-promotion baseline run.
+  - **Candidate Retention**: Rollback mutates only the active production pointer and appends audit events to `registry/history.jsonl`. Candidate artifacts (`models/v_promotable/`, `models/v0002/`) remain completely intact for forensic investigation.
+  - **Operational CLI**: `python scripts/rollback.py [--to <version>]` provides operations personnel with unambiguous execution logs and clear exit codes (0 for success, 1 for failure), ensuring complete auditability.
+

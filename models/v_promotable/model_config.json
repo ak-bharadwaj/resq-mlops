@@ -1,0 +1,20 @@
+{
+  "model_version": "v_promotable",
+  "model_type": "deterministic_weighted_multisignal",
+  "feature_version": "features-v1",
+  "schema_version": "telemetry-v1",
+  "baseline_days": 28,
+  "recent_days": 7,
+  "sigma": 3.0,
+  "expected_hours_week": 168,
+  "weights": {
+    "w_anomaly": 0.7,
+    "w_silence": 0.3
+  },
+  "metrics": [
+    "offline_duration_sec",
+    "disconnection_cnt",
+    "reboot_cnt"
+  ],
+  "visits_per_week": 15
+}
