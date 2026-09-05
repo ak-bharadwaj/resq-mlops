@@ -308,3 +308,54 @@ def test_holdout_protection_blocks_all_group_holdout_gateways(repo_root: pathlib
     for gid in holdout_ids:
         with pytest.raises(HoldoutAccessError):
             HoldoutProtection.check_gateway_access(gid, holdout_ids, allow_holdout=False)
+
+
+def test_run_json_provenance_contract(tmp_path: pathlib.Path, repo_root: pathlib.Path):
+    """Verify run.json provenance contract per v25 Section 6 and Section 14.
+
+    Must contain: run_id, model_version, feature_version, schema_version,
+    runtime (python_version, platform), requirements_lock_hash, and replay_hash.
+    """
+    from app.model.predict import write_run_record, compute_requirements_lock_hash
+
+    # 1. Test unit emission with write_run_record
+    target_run_json = tmp_path / "run.json"
+    rec = write_run_record(
+        run_path=target_run_json,
+        model_version="v0001",
+        replay_hash="sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc",
+        output_file="predictions.csv",
+        data_dir="data",
+    )
+
+    assert target_run_json.exists()
+    loaded = json.loads(target_run_json.read_text(encoding="utf-8"))
+
+    required_keys = [
+        "run_id",
+        "model_version",
+        "feature_version",
+        "schema_version",
+        "runtime",
+        "requirements_lock_hash",
+        "replay_hash",
+        "data_dir",
+        "output_file",
+        "timestamp_utc",
+    ]
+    for k in required_keys:
+        assert k in loaded, f"Missing required provenance key: {k}"
+
+    assert loaded["model_version"] == "v0001"
+    assert loaded["feature_version"] == "baseline-v1"
+    assert loaded["schema_version"] == "telemetry-v1"
+    assert "python_version" in loaded["runtime"]
+    assert "platform" in loaded["runtime"]
+    assert loaded["requirements_lock_hash"].startswith("sha256:")
+    assert loaded["replay_hash"].startswith("sha256:")
+
+    # 2. Check sync with run_latest.json
+    latest_run = tmp_path / "run_latest.json"
+    assert latest_run.exists()
+    assert json.loads(latest_run.read_text(encoding="utf-8")) == loaded
+

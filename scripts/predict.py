@@ -12,7 +12,12 @@ root_dir = pathlib.Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from app.model.predict import InsufficientEligibleGatewaysError, ModelArtifactError, predict_week
+from app.model.predict import (
+    InsufficientEligibleGatewaysError,
+    ModelArtifactError,
+    predict_week,
+    write_run_record,
+)
 
 
 def main() -> None:
@@ -44,7 +49,7 @@ def main() -> None:
     parser.add_argument(
         "--run-record",
         type=pathlib.Path,
-        default=pathlib.Path("runs/prediction/run_latest.json"),
+        default=pathlib.Path("runs/prediction/run.json"),
         help="Output run provenance JSON record",
     )
     args = parser.parse_args()
@@ -112,17 +117,16 @@ def main() -> None:
         json.dumps(result["backlog_report"], indent=2), encoding="utf-8"
     )
 
-    # Write run record
-    args.run_record.parent.mkdir(parents=True, exist_ok=True)
-    run_record_data = {
-        "active_version": result["active_version"],
-        "week_start": result["week_start"],
-        "data_dir": str(args.data),
-        "replay_hash": result["replay_hash"],
-        "predictions_file": str(args.output),
-        "backlog_file": str(args.backlog_report),
-    }
-    args.run_record.write_text(json.dumps(run_record_data, indent=2), encoding="utf-8")
+    # Write run record per v25 Section 6 and Section 14
+    write_run_record(
+        run_path=args.run_record,
+        model_version=result["active_version"],
+        replay_hash=result["replay_hash"],
+        output_file=str(args.output),
+        backlog_file=str(args.backlog_report),
+        data_dir=str(args.data),
+        week_start=result["week_start"],
+    )
 
     print(f"Active model: {result['active_version']}")
     print(f"Data source: {args.data.resolve()}")

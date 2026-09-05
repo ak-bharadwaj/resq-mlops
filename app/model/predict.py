@@ -15,6 +15,7 @@ import datetime as dt
 import hashlib
 import json
 import pathlib
+import sys
 from typing import Any, Set
 
 import numpy as np
@@ -340,3 +341,82 @@ def predict_week(
         "week_start": monday.isoformat(),
         "scored_gateway_ids": [rec["gateway_id"] for rec in scored_records],
     }
+
+
+def compute_requirements_lock_hash(
+    lock_path: pathlib.Path = pathlib.Path("requirements.lock"),
+) -> str | None:
+    """Compute SHA256 of requirements.lock for runtime provenance."""
+    if lock_path.exists():
+        return f"sha256:{hashlib.sha256(lock_path.read_bytes()).hexdigest()}"
+    return None
+
+
+def write_run_record(
+    run_path: pathlib.Path = pathlib.Path("runs/prediction/run.json"),
+    *,
+    model_version: str,
+    feature_version: str | None = None,
+    schema_version: str | None = None,
+    replay_hash: str,
+    output_file: str,
+    backlog_file: str | None = None,
+    data_dir: str = "data",
+    week_start: str | None = None,
+    run_id: str | None = None,
+    execution_timestamp_utc: str = "2026-09-05T00:00:00Z",
+) -> dict[str, Any]:
+    """Emit authoritative runtime provenance record per v25 Section 6 and Section 14."""
+    manifest_path = pathlib.Path(f"models/{model_version}/manifest.json")
+    if manifest_path.exists():
+        try:
+            m_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if feature_version is None:
+                feature_version = m_data.get("feature_version")
+            if schema_version is None:
+                schema_version = m_data.get("schema_version")
+        except Exception:
+            pass
+
+    if feature_version is None:
+        feature_version = "features-v1" if model_version == "v0002" else "baseline-v1"
+    if schema_version is None:
+        schema_version = "telemetry-v1"
+
+    if run_id is None:
+        clean_hash = replay_hash.replace("sha256:", "")
+        run_id = f"run_{model_version}_{clean_hash[:12]}"
+
+    req_hash = compute_requirements_lock_hash()
+
+    record: dict[str, Any] = {
+        "run_id": run_id,
+        "model_version": model_version,
+        "feature_version": feature_version,
+        "schema_version": schema_version,
+        "runtime": {
+            "python_version": sys.version.split()[0],
+            "python_full": sys.version,
+            "platform": sys.platform,
+        },
+        "requirements_lock_hash": req_hash,
+        "replay_hash": replay_hash,
+        "data_dir": str(data_dir),
+        "output_file": str(output_file),
+        "timestamp_utc": execution_timestamp_utc,
+    }
+    if backlog_file:
+        record["backlog_file"] = str(backlog_file)
+    if week_start:
+        record["week_start"] = str(week_start)
+
+    run_path.parent.mkdir(parents=True, exist_ok=True)
+    run_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+    # If writing to run.json, also sync to run_latest.json for backward compatibility
+    if run_path.name == "run.json":
+        latest_path = run_path.parent / "run_latest.json"
+        latest_path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
+    return record
+

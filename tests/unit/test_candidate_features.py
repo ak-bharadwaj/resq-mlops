@@ -17,6 +17,7 @@ import copy
 import datetime as dt
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +39,8 @@ from app.model.scorer import (
 )
 from app.model.train import (
     PackageAlreadyExistsError,
+    TrainingError,
+    assert_clean_working_tree,
     compute_artifact_hash,
     train_candidate,
 )
@@ -478,6 +481,33 @@ class TestCandidateMaterializationAndProductionSeparation:
         )
 
         assert registry_file.read_text(encoding="utf-8") == initial_state
+
+    def test_packaging_asserts_clean_tree(self, monkeypatch, tmp_path: Path):
+        """Packaging verifies clean git working tree for scorer source per v25 Section 6."""
+        test_file = tmp_path / "mock_scorer.py"
+        test_file.write_text("# clean scorer\n", encoding="utf-8")
+
+        # Simulate git status --porcelain detecting uncommitted changes
+        def mock_git_dirty(*args, **kwargs):
+            class MockResult:
+                returncode = 0
+                stdout = " M app/model/scorer.py\n"
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_git_dirty)
+        with pytest.raises(TrainingError, match="clean working tree"):
+            assert_clean_working_tree(test_file)
+
+        # Simulate clean git status
+        def mock_git_clean(*args, **kwargs):
+            class MockResult:
+                returncode = 0
+                stdout = ""
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_git_clean)
+        # Clean file passes without error
+        assert_clean_working_tree(test_file)
 
 
 class TestRealDataAndEndToEndConnectivity:

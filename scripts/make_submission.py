@@ -14,7 +14,13 @@ root_dir = pathlib.Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from app.model.predict import InsufficientEligibleGatewaysError, ModelArtifactError, predict_week
+from app.model.predict import (
+    InsufficientEligibleGatewaysError,
+    ModelArtifactError,
+    predict_week,
+    resolve_active_model_version,
+    write_run_record,
+)
 
 SCORED_WEEKS = [dt.date(2026, 2, 2) + dt.timedelta(days=7 * i) for i in range(8)]
 
@@ -37,6 +43,12 @@ def main() -> None:
         "--skip-validation",
         action="store_true",
         help="Skip automatic validate_submission.py invocation",
+    )
+    parser.add_argument(
+        "--run-record",
+        type=pathlib.Path,
+        default=pathlib.Path("runs/prediction/run.json"),
+        help="Output run provenance JSON record (default: runs/prediction/run.json)",
     )
     args = parser.parse_args()
 
@@ -90,6 +102,21 @@ def main() -> None:
             print(val_res.stderr, file=sys.stderr)
             sys.exit(val_res.returncode)
         print("Submission validated successfully by validate_submission.py: PASS")
+
+    # Write run provenance record per v25 Section 6 and Section 14
+    import hashlib
+    pred_bytes = args.output.read_bytes()
+    submission_replay_hash = f"sha256:{hashlib.sha256(pred_bytes).hexdigest()}"
+
+    active_ver = resolve_active_model_version()
+    write_run_record(
+        run_path=args.run_record,
+        model_version=active_ver,
+        replay_hash=submission_replay_hash,
+        output_file=str(args.output),
+        data_dir=str(args.data),
+    )
+    print(f"Run provenance record written to {args.run_record}")
 
 
 if __name__ == "__main__":

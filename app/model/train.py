@@ -17,6 +17,7 @@ import datetime as dt
 import hashlib
 import json
 import pathlib
+import subprocess
 from typing import Any, Optional
 
 import joblib
@@ -36,6 +37,31 @@ class TrainingError(Exception):
 
 class PackageAlreadyExistsError(TrainingError):
     """Raised when attempting to overwrite an existing frozen model package."""
+
+
+def assert_clean_working_tree(file_path: pathlib.Path) -> None:
+    """Assert that file_path has no uncommitted modifications in git per v25 Section 6.
+
+    Fails closed with TrainingError if the working tree has uncommitted modifications to the file.
+    """
+    if not file_path.exists():
+        return
+    try:
+        res = subprocess.run(
+            ["git", "status", "--porcelain", str(file_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res.returncode == 0:
+            output = res.stdout.strip()
+            if output:
+                raise TrainingError(
+                    f"Packaging requires clean working tree per v25 Section 6: {file_path} has uncommitted modifications:\n{output}"
+                )
+    except FileNotFoundError:
+        # git binary not found in environment
+        pass
 
 
 def compute_artifact_hash(model_dir: pathlib.Path) -> str:
@@ -204,10 +230,11 @@ def train_candidate(
         json.dumps(schema_dict, indent=2), encoding="utf-8"
     )
 
-    # 7. Write scorer_identity.txt with cryptographic binding
+    # 7. Write scorer_identity.txt with cryptographic binding and clean-tree assertion per v25 Section 6
     if candidate_version == "v0002":
         scorer_path = pathlib.Path("app/model/scorer.py")
         if scorer_path.exists():
+            assert_clean_working_tree(scorer_path)
             scorer_sha = hashlib.sha256(scorer_path.read_bytes()).hexdigest()
             scorer_identity_content = f"WeightedMultiSignalScorer:app/model/scorer.py:sha256:{scorer_sha}\n"
         else:
@@ -215,6 +242,7 @@ def train_candidate(
     else:
         baseline_path = pathlib.Path("baseline_3sigma.py")
         if baseline_path.exists():
+            assert_clean_working_tree(baseline_path)
             baseline_sha = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
             scorer_identity_content = f"baseline_3sigma.py:sha256:{baseline_sha}\n"
         else:
