@@ -11,6 +11,14 @@ class SourceCompletenessError(Exception):
     """Raised when systemic fleet absence trips the source-completeness guard into BLOCK_FEATURES."""
 
 
+class HoldoutAccessError(Exception):
+    """Raised when holdout data (GROUP_HOLDOUT_IDS or post-cutoff files) is accessed without explicit authorization."""
+
+
+class DevelopmentFirewallError(Exception):
+    """Raised when development-time logic attempts to consume post-cutoff evidence (> 2026-01-31)."""
+
+
 class CompletenessResult(tuple):
     """Result of fleet-wide source completeness check.
 
@@ -247,4 +255,54 @@ def audit_gateway_telemetry_status(
         })
 
     return pd.DataFrame(results)
+
+
+class HoldoutProtection:
+    """Programmatic guard protecting holdouts and post-cutoff files (GEMINI.md Rule 8 & v25 Section 2C)."""
+
+    DEVELOPMENT_CUTOFF: dt.date = dt.date(2026, 1, 31)
+    POST_CUTOFF_FILES: Set[str] = {
+        "engineer_review_2026-02.xlsx",
+        "engineer_review_2026-02.csv",
+    }
+
+    @classmethod
+    def check_file_access(cls, file_path: str | Any, allow_holdout: bool = False) -> None:
+        """Check if file path points to a protected holdout or post-cutoff file."""
+        import pathlib
+        p = pathlib.Path(file_path)
+        if p.name in cls.POST_CUTOFF_FILES:
+            if not allow_holdout:
+                raise HoldoutAccessError(
+                    f"Unauthorized access to post-cutoff holdout file '{p.name}'. "
+                    f"GEMINI.md Rule 8 forbids post-cutoff access during development."
+                )
+
+    @classmethod
+    def check_date_access(cls, date_val: dt.date | dt.datetime | pd.Timestamp, allow_holdout: bool = False) -> None:
+        """Verify that date does not exceed the frozen development cutoff (2026-01-31)."""
+        if hasattr(date_val, "date") and callable(getattr(date_val, "date")):
+            check_d = date_val.date()
+        elif isinstance(date_val, dt.date):
+            check_d = date_val
+        else:
+            check_d = pd.to_datetime(date_val).date()
+
+        if check_d > cls.DEVELOPMENT_CUTOFF and not allow_holdout:
+            raise DevelopmentFirewallError(
+                f"Attempted access to date {check_d} which exceeds frozen development cutoff {cls.DEVELOPMENT_CUTOFF}."
+            )
+
+    @classmethod
+    def check_gateway_access(
+        cls,
+        gateway_id: str,
+        holdout_gateways: Set[str],
+        allow_holdout: bool = False,
+    ) -> None:
+        """Verify that gateway_id is not in the frozen group holdout set."""
+        if gateway_id in holdout_gateways and not allow_holdout:
+            raise HoldoutAccessError(
+                f"Unauthorized access to GROUP_HOLDOUT gateway '{gateway_id}' during development (Rule 8)."
+            )
 

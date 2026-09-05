@@ -447,3 +447,24 @@ def load_telemetry_window(
 
     return deduped_df
 
+
+def load_engineer_review(
+    data_dir: pathlib.Path,
+    allow_holdout: bool = False,
+) -> pd.DataFrame:
+    """Load engineer review data with strict HoldoutProtection enforcement (Rule 8).
+
+    Raises HoldoutAccessError if accessed during development mode (allow_holdout=False).
+    """
+    from app.data.quality import HoldoutProtection
+
+    review_path = data_dir / "engineer_review_2026-02.xlsx"
+    HoldoutProtection.check_file_access(review_path, allow_holdout=allow_holdout)
+    if not review_path.exists():
+        raise FileNotFoundError(f"Missing {review_path}")
+
+    df = pd.read_excel(review_path)
+    if "canonical_id" not in df.columns and "gateway_id" in df.columns:
+        df["canonical_id"] = df["gateway_id"].apply(canonicalize_gateway_id)
+    return df
+
