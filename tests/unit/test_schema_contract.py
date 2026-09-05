@@ -203,3 +203,57 @@ def test_anti_fake_schema_cannot_be_bypassed():
     empty_df = pd.DataFrame()
     with pytest.raises(SchemaValidationError):
         contract.validate_or_raise(empty_df)
+
+
+def test_load_active_schema_fails_closed_when_schema_missing(tmp_path: pathlib.Path):
+    """Verify load_active_schema fails closed when active model exists but schema.json is missing."""
+    models_dir = tmp_path / "models"
+    model_v1 = models_dir / "v0001"
+    model_v1.mkdir(parents=True)
+    # schema.json deliberately NOT created
+
+    registry_path = tmp_path / "registry" / "active.json"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text(json.dumps({"production_version": "v0001"}), encoding="utf-8")
+
+    with pytest.raises(SchemaValidationError, match="Authoritative schema contract missing"):
+        TelemetrySchemaContract.load_active_schema(models_dir=models_dir, registry_path=registry_path)
+
+
+def test_load_active_schema_fails_closed_when_schema_corrupt(tmp_path: pathlib.Path):
+    """Verify load_active_schema fails closed when active model schema.json is corrupt."""
+    models_dir = tmp_path / "models"
+    model_v1 = models_dir / "v0001"
+    model_v1.mkdir(parents=True)
+    (model_v1 / "schema.json").write_text("{CORRUPT_JSON_DATA", encoding="utf-8")
+
+    registry_path = tmp_path / "registry" / "active.json"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text(json.dumps({"production_version": "v0001"}), encoding="utf-8")
+
+    with pytest.raises(SchemaValidationError, match="corrupt or invalid"):
+        TelemetrySchemaContract.load_active_schema(models_dir=models_dir, registry_path=registry_path)
+
+
+def test_load_active_schema_fails_closed_when_registry_corrupt(tmp_path: pathlib.Path):
+    """Verify load_active_schema fails closed when registry active.json is corrupt."""
+    models_dir = tmp_path / "models"
+    registry_path = tmp_path / "registry" / "active.json"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text("{CORRUPT_JSON", encoding="utf-8")
+
+    with pytest.raises(SchemaValidationError, match="unreadable or corrupt JSON"):
+        TelemetrySchemaContract.load_active_schema(models_dir=models_dir, registry_path=registry_path)
+
+
+def test_load_active_schema_fails_closed_when_model_dir_missing(tmp_path: pathlib.Path):
+    """Verify load_active_schema fails closed when active version has no model directory."""
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(parents=True)
+    registry_path = tmp_path / "registry" / "active.json"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text(json.dumps({"production_version": "v9999"}), encoding="utf-8")
+
+    with pytest.raises(SchemaValidationError, match="model artifact directory .* does not exist"):
+        TelemetrySchemaContract.load_active_schema(models_dir=models_dir, registry_path=registry_path)
+

@@ -57,22 +57,63 @@ class TelemetrySchemaContract(BaseModel):
         cls,
         models_dir: pathlib.Path = pathlib.Path("models"),
         registry_path: pathlib.Path = pathlib.Path("registry/active.json"),
+        baseline_path: pathlib.Path = pathlib.Path("monitoring/schema_baseline.json"),
     ) -> "TelemetrySchemaContract":
         """Load authoritative model schema contract based on registry/active.json.
 
         Rule: models/<version>/schema.json is authoritative once model artifacts exist.
         monitoring/schema_baseline.json must never override it.
+        Fail closed: if an active model/version is registered, any failure to load its
+        authoritative schema contract MUST raise SchemaValidationError, never silently
+        falling back to default or baseline schemas.
         """
         if registry_path.exists():
             try:
                 with open(registry_path, encoding="utf-8") as f:
                     active = json.load(f)
-                active_version = active.get("production_version", "v0001")
-                schema_path = models_dir / active_version / "schema.json"
-                if schema_path.exists():
-                    return cls.load_from_model(models_dir / active_version)
-            except Exception:
-                pass
+            except Exception as ex:
+                raise SchemaValidationError(
+                    f"Active model registry at '{registry_path}' is unreadable or corrupt JSON: {ex}"
+                ) from ex
+
+            if not isinstance(active, dict) or "production_version" not in active:
+                raise SchemaValidationError(
+                    f"Active model registry at '{registry_path}' is invalid: missing required 'production_version' field."
+                )
+
+            active_version = active["production_version"]
+            model_dir = models_dir / active_version
+            if not model_dir.exists():
+                raise SchemaValidationError(
+                    f"Active model '{active_version}' declared in registry '{registry_path}' but model artifact directory '{model_dir}' does not exist. Failing closed."
+                )
+
+            schema_path = model_dir / "schema.json"
+            if not schema_path.exists():
+                raise SchemaValidationError(
+                    f"Authoritative schema contract missing for active model '{active_version}' at '{schema_path}'. Failing closed per frozen governance rules."
+                )
+
+            try:
+                with open(schema_path, encoding="utf-8") as f:
+                    schema_data = json.load(f)
+                return cls(**schema_data)
+            except Exception as ex:
+                raise SchemaValidationError(
+                    f"Authoritative schema contract for active model '{active_version}' at '{schema_path}' is corrupt or invalid: {ex}"
+                ) from ex
+
+        # Pre-model foundation phase: if no active model registry exists, fall back to monitoring baseline if present
+        if baseline_path.exists():
+            try:
+                with open(baseline_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                return cls(**data)
+            except Exception as ex:
+                raise SchemaValidationError(
+                    f"Baseline monitoring schema at '{baseline_path}' is corrupt or invalid: {ex}"
+                ) from ex
+
         return cls()
 
     def validate_dataframe(self, df: pd.DataFrame, projected: bool = False) -> Tuple[bool, List[str]]:

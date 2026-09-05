@@ -83,9 +83,15 @@ def test_cli_make_submission_rejects_nonexistent_directory():
     assert "does not exist" in res.stderr
 
 
-def test_cli_train_data_flag_and_validation(tmp_path: pathlib.Path):
-    """Verify scripts/train.py --data accepts alternate path and rejects non-existent directory."""
-    # 1. Non-existent path rejects cleanly with non-zero code
+def test_cli_train_data_flag_and_path_validation(tmp_path: pathlib.Path):
+    """Verify scripts/train.py --data flag and path validation at Phase Gating boundary.
+    
+    Explicit Contract Boundary:
+    scripts/train.py accepts --data and enforces path validation. Per Rule 2 (Strict Phase
+    Gating), training logic is deliberately withheld (NotImplementedError). This test strictly
+    proves CLI argument acceptance and path validation without over-crediting training execution.
+    """
+    # 1. Non-existent path rejects cleanly with non-zero exit code
     nonexistent = pathlib.Path("data_does_not_exist_12345")
     cmd_invalid = [
         sys.executable,
@@ -97,7 +103,7 @@ def test_cli_train_data_flag_and_validation(tmp_path: pathlib.Path):
     assert res_inv.returncode != 0
     assert "does not exist" in res_inv.stderr
 
-    # 2. Existing path proceeds to phase boundary notice (NotImplementedError)
+    # 2. Existing path validates successfully, then halts at Phase Gating boundary with NotImplementedError
     cmd_valid = [
         sys.executable,
         "scripts/train.py",
@@ -105,7 +111,9 @@ def test_cli_train_data_flag_and_validation(tmp_path: pathlib.Path):
         str(tmp_path),
     ]
     res_val = subprocess.run(cmd_valid, capture_output=True, text=True)
+    assert res_val.returncode != 0
     assert "NotImplementedError" in res_val.stderr or "Phase gating" in res_val.stderr
+
 
 
 def test_underlying_loaders_propagate_data_dir(tmp_path: pathlib.Path):
