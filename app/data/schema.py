@@ -77,7 +77,7 @@ class TelemetrySchemaContract(BaseModel):
             ts_series = df[ts_col]
             if not pd.api.types.is_datetime64_any_dtype(ts_series):
                 try:
-                    ts_converted = pd.to_datetime(ts_series, utc=True)
+                    ts_converted = pd.to_datetime(ts_series, utc=True, format="ISO8601")
                     if ts_converted.isna().any() and not ts_series.isna().all():
                         errors.append(f"{ts_col} contains unparseable timestamp values")
                 except Exception as ex:

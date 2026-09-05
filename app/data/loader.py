@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import pathlib
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 from app.data.schema import (
     ConflictingRecordError,
@@ -69,6 +72,86 @@ def canonicalize_gateway_id(raw_id: Any) -> str:
     )
 
 
+def enforce_duplicate_policy(
+    df: pd.DataFrame,
+    key_cols: List[str],
+    semantic_cols: Optional[List[str]] = None,
+    source_name: str = "dataset",
+) -> Tuple[pd.DataFrame, int]:
+    """Formalized duplicate-record policy across all ingestion paths (Task 7 / Section 7A).
+
+    Frozen Policy:
+    - Exact/equivalent duplicate across semantic columns:
+      deterministic deduplication (keep first occurrence, log count).
+    - Same logical key (key_cols) + conflicting semantic values:
+      BLOCK ingestion/evaluation by raising ConflictingRecordError.
+      Never silently choose an arbitrary winner or average values.
+    """
+    if df.empty:
+        return df, 0
+
+    work_df = df
+    if "canonical_id" not in work_df.columns and "gateway_id" in work_df.columns:
+        work_df = work_df.copy()
+        work_df["canonical_id"] = work_df["gateway_id"].apply(canonicalize_gateway_id)
+
+    # Normalize key_cols to use canonical_id if gateway_id was specified
+    resolved_key_cols = [
+        "canonical_id" if (c == "gateway_id" and "canonical_id" in work_df.columns) else c
+        for c in key_cols
+    ]
+
+    if semantic_cols is None:
+        # Exclude raw formatting columns (gateway_id, and ts_utc if authoritative parsed ts is present)
+        excluded = set()
+        if "canonical_id" in work_df.columns and "gateway_id" in work_df.columns:
+            excluded.add("gateway_id")
+        if "ts" in work_df.columns and "ts_utc" in work_df.columns:
+            excluded.add("ts_utc")
+        semantic_cols = [c for c in work_df.columns if c not in excluded]
+
+    exact_dup_mask = work_df.duplicated(subset=semantic_cols, keep="first")
+    exact_dup_count = int(exact_dup_mask.sum())
+    deduped = work_df.drop_duplicates(subset=semantic_cols, keep="first").copy()
+
+    if exact_dup_count > 0:
+        logger.info(
+            "Duplicate policy [%s]: deterministically deduplicated %d exact/equivalent record(s)",
+            source_name,
+            exact_dup_count,
+        )
+
+    # Check for conflicting duplicates on logical key_cols
+    key_dup_mask = deduped.duplicated(subset=resolved_key_cols, keep=False)
+    if key_dup_mask.any():
+        conflicts = deduped.loc[key_dup_mask].sort_values(by=resolved_key_cols)
+        sample = conflicts[resolved_key_cols].head(4).to_dict(orient="records")
+        if source_name == "gateway_master":
+            msg = (
+                f"Conflicting master records detected for canonical gateway ID(s): {sample}. "
+                "Distinct records colliding on the same canonical ID BLOCK ingestion per frozen contract."
+            )
+        elif source_name == "field_visits":
+            msg = (
+                f"Conflicting visit records detected for visit_id(s): {sample}. "
+                "Distinct records colliding on the same visit ID BLOCK ingestion per frozen contract."
+            )
+        elif source_name == "telemetry":
+            msg = (
+                f"Conflicting telemetry records detected for same gateway and timestamp: {sample}. "
+                "Conflicting records BLOCK prediction per frozen Section 7A contract."
+            )
+        else:
+            msg = (
+                f"Conflicting records detected in {source_name} for logical key {resolved_key_cols}: {sample}. "
+                "Conflicting records BLOCK ingestion per frozen duplicate-record contract. "
+                "Never silently select an arbitrary winner."
+            )
+        raise ConflictingRecordError(msg)
+
+    return deduped, exact_dup_count
+
+
 def load_gateway_master(data_dir: pathlib.Path) -> pd.DataFrame:
     """Load gateway_master.csv using frozen CP1252 encoding.
 
@@ -102,15 +185,12 @@ def load_gateway_master(data_dir: pathlib.Path) -> pd.DataFrame:
 
     # Collision safety: Check for equivalent vs distinct collisions on canonical_id
     semantic_cols = [c for c in df.columns if c != "gateway_id"]
-    deduped = df.drop_duplicates(subset=semantic_cols, keep="first").copy()
-
-    if deduped["canonical_id"].duplicated().any():
-        conflicts = deduped.loc[deduped["canonical_id"].duplicated(keep=False)].sort_values(by="canonical_id")
-        sample = conflicts[["canonical_id"]].head(4).to_dict(orient="records")
-        raise ConflictingRecordError(
-            f"Conflicting master records detected for canonical gateway ID(s): {sample}. "
-            "Distinct records colliding on the same canonical ID BLOCK ingestion per frozen contract."
-        )
+    deduped, _ = enforce_duplicate_policy(
+        df,
+        key_cols=["canonical_id"],
+        semantic_cols=semantic_cols,
+        source_name="gateway_master",
+    )
 
     return deduped
 
@@ -186,17 +266,14 @@ def load_field_visits(data_dir: pathlib.Path) -> pd.DataFrame:
     if (df["technician_hours"] < 0.0).any():
         raise SchemaValidationError("technician_hours must be non-negative (>= 0.0)")
 
-    # Collision safety: Check for equivalent vs distinct duplicate visits
+    # Enforce duplicate policy on logical key 'visit_id'
     semantic_cols = [c for c in df.columns if c != "gateway_id"]
-    deduped = df.drop_duplicates(subset=semantic_cols, keep="first").copy()
-
-    if "visit_id" in deduped.columns and deduped["visit_id"].duplicated().any():
-        conflicts = deduped.loc[deduped["visit_id"].duplicated(keep=False)].sort_values(by="visit_id")
-        sample = conflicts[["visit_id", "canonical_id"]].head(4).to_dict(orient="records")
-        raise ConflictingRecordError(
-            f"Conflicting visit records detected for visit_id(s): {sample}. "
-            "Distinct records colliding on the same visit ID BLOCK ingestion per frozen contract."
-        )
+    deduped, _ = enforce_duplicate_policy(
+        df,
+        key_cols=["visit_id"],
+        semantic_cols=semantic_cols,
+        source_name="field_visits",
+    )
 
     return deduped
 
@@ -277,30 +354,13 @@ def resolve_telemetry_duplicates(
     if "ts" not in work_df.columns and "ts_utc" in work_df.columns:
         if work_df is df:
             work_df = work_df.copy()
-        work_df["ts"] = pd.to_datetime(work_df["ts_utc"], utc=True)
+        work_df["ts"] = pd.to_datetime(work_df["ts_utc"], utc=True, format="ISO8601")
 
-    # 1. Check exact duplicates / equivalent representations across all semantic columns
-    # Exclude raw formatting columns (gateway_id, and ts_utc if authoritative parsed ts is present)
-    excluded = {"gateway_id"}
-    if "ts" in work_df.columns and "ts_utc" in work_df.columns:
-        excluded.add("ts_utc")
-    semantic_cols = [c for c in work_df.columns if c not in excluded]
-
-    exact_dup_mask = work_df.duplicated(subset=semantic_cols, keep="first")
-    exact_dup_count = int(exact_dup_mask.sum())
-    deduped = work_df.drop_duplicates(subset=semantic_cols, keep="first").copy()
-
-    # 2. Check for conflicting duplicates on key_cols
-    key_dup_mask = deduped.duplicated(subset=key_cols, keep=False)
-    if key_dup_mask.any():
-        conflicts = deduped.loc[key_dup_mask].sort_values(by=key_cols)
-        sample = conflicts[key_cols].head(4).to_dict(orient="records")
-        raise ConflictingRecordError(
-            f"Conflicting telemetry records detected for same gateway and timestamp: {sample}. "
-            "Conflicting records BLOCK prediction per frozen Section 7A contract."
-        )
-
-    return deduped, exact_dup_count
+    return enforce_duplicate_policy(
+        work_df,
+        key_cols=key_cols,
+        source_name="telemetry",
+    )
 
 
 def _check_is_utc(dt_val: dt.datetime, param_name: str) -> None:
@@ -364,7 +424,7 @@ def load_telemetry_window(
     contract = TelemetrySchemaContract()
     contract.validate_or_raise(df)
 
-    df["ts"] = pd.to_datetime(df["ts_utc"], utc=True)
+    df["ts"] = pd.to_datetime(df["ts_utc"], utc=True, format="ISO8601")
 
     # Apply strict temporal firewall BEFORE canonicalization to avoid wasteful compute
     mask = df["ts"] < cutoff_utc
