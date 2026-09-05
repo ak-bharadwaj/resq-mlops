@@ -78,29 +78,79 @@ def build_canonical_input_bytes(
     telemetry_df: pd.DataFrame,
     start_utc: dt.datetime,
     cutoff_utc: dt.datetime,
-    eligible_gateways: Set[str],
+    week_start: str | dt.date | None = None,
+    active_version: str | None = None,
+    eligibility_df: pd.DataFrame | None = None,
+    eligible_gateways: Set[str] | None = None,
 ) -> bytes:
     """Build canonical input bytes per Section 6 / v25 replay contract.
 
     v25 Specification:
-    Canonical input uses fixed column order, deterministic row ordering by
-    week_start/timestamp/canonical gateway_id, UTF-8, LF endings, explicit
-    null tokens ('NA') and fixed numeric serialization.
+    Cryptographically binds declared decision inputs:
+    1. Context Header: week_start, active_version, cutoff_utc
+    2. Eligible Gateway State: canonical_id, installed_on, decommissioned_on (sorted ascending)
+    3. Telemetry Block: canonical_id, ts, offline_duration_sec, disconnection_cnt, reboot_cnt
+       (sorted by ts ascending, then canonical_id ascending)
+    Fixed column order, UTF-8, LF endings, explicit null tokens ('NA') and fixed numeric serialization.
     """
+    # Handle legacy positional calls: (telemetry_df, start_utc, cutoff_utc, eligible_gateways)
+    if isinstance(week_start, (set, list)):
+        eligible_gateways = set(week_start)
+        week_start = None
+
+    lines: list[str] = []
+
+    # 1. Context Header
+    week_str = week_start.isoformat() if hasattr(week_start, "isoformat") else str(week_start or "NA")
+    active_str = str(active_version or "NA")
+    cutoff_str = cutoff_utc.isoformat() if hasattr(cutoff_utc, "isoformat") else str(cutoff_utc)
+    lines.append(f"# context:week_start={week_str},active_version={active_str},cutoff_utc={cutoff_str}\n")
+
+    # 2. Eligible Gateway State Block
+    lines.append("canonical_id,installed_on,decommissioned_on\n")
+    if eligibility_df is not None and not eligibility_df.empty:
+        id_col_elig = "canonical_id" if "canonical_id" in eligibility_df.columns else "gateway_id"
+        if "is_eligible" in eligibility_df.columns:
+            eligible_rows = eligibility_df[eligibility_df["is_eligible"]].copy()
+        else:
+            eligible_rows = eligibility_df.copy()
+
+        eligible_rows.sort_values(by=id_col_elig, ascending=True, inplace=True)
+        for row in eligible_rows.itertuples(index=False):
+            gid = str(getattr(row, id_col_elig))
+            inst = getattr(row, "installed_on", None)
+            inst_str = str(inst) if pd.notna(inst) else "NA"
+            decom = getattr(row, "decommissioned_on", None)
+            decom_str = str(decom) if pd.notna(decom) else "NA"
+            lines.append(f"{gid},{inst_str},{decom_str}\n")
+    elif eligible_gateways:
+        for gid in sorted(eligible_gateways):
+            lines.append(f"{gid},NA,NA\n")
+
+    # 3. Telemetry Block
+    lines.append("canonical_id,ts,offline_duration_sec,disconnection_cnt,reboot_cnt\n")
     id_col = "canonical_id" if "canonical_id" in telemetry_df.columns else "gateway_id"
     metrics = ["offline_duration_sec", "disconnection_cnt", "reboot_cnt"]
 
     mask = (
         (telemetry_df["ts"] >= start_utc)
         & (telemetry_df["ts"] < cutoff_utc)
-        & (telemetry_df[id_col].isin(eligible_gateways))
     )
+    if eligible_gateways is not None:
+        mask = mask & (telemetry_df[id_col].isin(eligible_gateways))
+    elif eligibility_df is not None and not eligibility_df.empty:
+        id_col_elig = "canonical_id" if "canonical_id" in eligibility_df.columns else "gateway_id"
+        if "is_eligible" in eligibility_df.columns:
+            el_set = set(eligibility_df[eligibility_df["is_eligible"]][id_col_elig])
+        else:
+            el_set = set(eligibility_df[id_col_elig])
+        mask = mask & (telemetry_df[id_col].isin(el_set))
+
     subset = telemetry_df.loc[mask, [id_col, "ts", *metrics]].copy()
 
     # Deterministic sort: timestamp ascending, then canonical ID ascending
     subset.sort_values(by=["ts", id_col], ascending=[True, True], inplace=True)
 
-    lines = ["canonical_id,ts,offline_duration_sec,disconnection_cnt,reboot_cnt\n"]
     for row in subset.itertuples(index=False):
         gid = str(getattr(row, id_col))
         ts_str = pd.to_datetime(row.ts).isoformat()
@@ -278,6 +328,9 @@ def predict_week(
         telemetry_df=telemetry_df,
         start_utc=start_utc,
         cutoff_utc=cutoff_utc,
+        week_start=monday,
+        active_version=active_version,
+        eligibility_df=eligibility_df,
         eligible_gateways=eligible_gateways,
     )
     canonical_pred_bytes = build_canonical_predictions_bytes(predictions)

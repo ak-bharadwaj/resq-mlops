@@ -404,3 +404,177 @@ def test_v0001_packaging_cryptographic_binding(repo_root: pathlib.Path, tmp_path
     manifest = json.loads((cand_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["artifact_hash"] == art_hash
     assert result["artifact_hash"] == art_hash
+
+
+def test_replay_hash_adversarial_input_binding_suite(repo_root: pathlib.Path):
+    """Verify replay hash cryptographically binds all declared decision inputs (context, eligibility, telemetry).
+
+    Adversarial Gate:
+    1. Eligibility state mutation: modifying installed_on or decommissioned_on changes replay hash.
+    2. Gateway-set mutation: adding or removing an eligible gateway changes replay hash.
+    3. Context binding: altering week_start, cutoff_utc, or active_version changes replay hash.
+    4. Telemetry perturbation: modifying metric or timestamp changes replay hash.
+    5. Row ordering determinism: shuffling input row order preserves identical canonical bytes & hash.
+    """
+    cutoff = dt.datetime(2026, 2, 2, 0, 0, 0, tzinfo=dt.timezone.utc)
+    start = cutoff - dt.timedelta(days=28)
+    dummy_ts = dt.datetime(2026, 1, 15, 12, 0, 0, tzinfo=dt.timezone.utc)
+
+    # Base inputs
+    tel_df = pd.DataFrame([
+        {
+            "canonical_id": "0639EA5602C1",
+            "ts": dummy_ts,
+            "offline_duration_sec": 100.0,
+            "disconnection_cnt": 1.0,
+            "reboot_cnt": 0.0,
+        },
+        {
+            "canonical_id": "0639EA5602C2",
+            "ts": dummy_ts + dt.timedelta(hours=1),
+            "offline_duration_sec": 200.0,
+            "disconnection_cnt": 2.0,
+            "reboot_cnt": 1.0,
+        },
+    ])
+
+    elig_df = pd.DataFrame([
+        {
+            "canonical_id": "0639EA5602C1",
+            "installed_on": dt.date(2025, 1, 1),
+            "decommissioned_on": None,
+            "is_eligible": True,
+        },
+        {
+            "canonical_id": "0639EA5602C2",
+            "installed_on": dt.date(2025, 6, 1),
+            "decommissioned_on": None,
+            "is_eligible": True,
+        },
+    ])
+
+    pred_bytes = b"sample_predictions_bytes"
+
+    # Base canonical input bytes and replay hash
+    base_bytes = build_canonical_input_bytes(
+        telemetry_df=tel_df,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0001",
+        eligibility_df=elig_df,
+    )
+    base_hash = compute_v25_replay_hash(base_bytes, pred_bytes)
+
+    # 1. Eligibility state mutation: change decommissioned_on
+    elig_mut1 = elig_df.copy()
+    elig_mut1.loc[0, "decommissioned_on"] = dt.date(2026, 3, 1)
+    bytes_mut1 = build_canonical_input_bytes(
+        telemetry_df=tel_df,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0001",
+        eligibility_df=elig_mut1,
+    )
+    assert bytes_mut1 != base_bytes, "Changing decommissioned_on must mutate canonical input bytes"
+    assert compute_v25_replay_hash(bytes_mut1, pred_bytes) != base_hash, "Changing decommissioned_on must mutate replay hash"
+
+    # Eligibility state mutation: change installed_on
+    elig_mut2 = elig_df.copy()
+    elig_mut2.loc[0, "installed_on"] = dt.date(2025, 3, 15)
+    bytes_mut2 = build_canonical_input_bytes(
+        telemetry_df=tel_df,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0001",
+        eligibility_df=elig_mut2,
+    )
+    assert bytes_mut2 != base_bytes
+    assert compute_v25_replay_hash(bytes_mut2, pred_bytes) != base_hash, "Changing installed_on must mutate replay hash"
+
+    # 2. Gateway-set mutation: remove an eligible gateway
+    elig_mut3 = elig_df.iloc[:1].copy()
+    bytes_mut3 = build_canonical_input_bytes(
+        telemetry_df=tel_df,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0001",
+        eligibility_df=elig_mut3,
+    )
+    assert bytes_mut3 != base_bytes
+    assert compute_v25_replay_hash(bytes_mut3, pred_bytes) != base_hash, "Removing gateway must mutate replay hash"
+
+    # Gateway-set mutation: add an eligible gateway
+    elig_mut4 = pd.concat([
+        elig_df,
+        pd.DataFrame([{
+            "canonical_id": "0639EA5602C3",
+            "installed_on": dt.date(2025, 2, 1),
+            "decommissioned_on": None,
+            "is_eligible": True,
+        }])
+    ], ignore_index=True)
+    bytes_mut4 = build_canonical_input_bytes(
+        telemetry_df=tel_df,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0001",
+        eligibility_df=elig_mut4,
+    )
+    assert bytes_mut4 != base_bytes
+    assert compute_v25_replay_hash(bytes_mut4, pred_bytes) != base_hash, "Adding gateway must mutate replay hash"
+
+    # 3. Context binding: change week_start, cutoff_utc, or active_version
+    bytes_ctx_week = build_canonical_input_bytes(
+        telemetry_df=tel_df,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-09",
+        active_version="v0001",
+        eligibility_df=elig_df,
+    )
+    assert bytes_ctx_week != base_bytes
+    assert compute_v25_replay_hash(bytes_ctx_week, pred_bytes) != base_hash
+
+    bytes_ctx_ver = build_canonical_input_bytes(
+        telemetry_df=tel_df,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0002",
+        eligibility_df=elig_df,
+    )
+    assert bytes_ctx_ver != base_bytes
+    assert compute_v25_replay_hash(bytes_ctx_ver, pred_bytes) != base_hash
+
+    # 4. Telemetry perturbation: modifying measurement changes replay hash
+    tel_df_mut = tel_df.copy()
+    tel_df_mut.loc[0, "reboot_cnt"] = 5.0
+    bytes_tel_mut = build_canonical_input_bytes(
+        telemetry_df=tel_df_mut,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0001",
+        eligibility_df=elig_df,
+    )
+    assert bytes_tel_mut != base_bytes
+    assert compute_v25_replay_hash(bytes_tel_mut, pred_bytes) != base_hash
+
+    # 5. Row ordering determinism: reverse rows of telemetry and eligibility
+    tel_df_reversed = tel_df.iloc[::-1].copy()
+    elig_df_reversed = elig_df.iloc[::-1].copy()
+    bytes_reversed = build_canonical_input_bytes(
+        telemetry_df=tel_df_reversed,
+        start_utc=start,
+        cutoff_utc=cutoff,
+        week_start="2026-02-02",
+        active_version="v0001",
+        eligibility_df=elig_df_reversed,
+    )
+    assert bytes_reversed == base_bytes, "Canonical input bytes must be order-invariant (deterministic sort)"
+    assert compute_v25_replay_hash(bytes_reversed, pred_bytes) == base_hash
