@@ -1,0 +1,170 @@
+================================================================================
+LPDG MLOPS TRACK F: TASK 16 EXECUTION EVIDENCE
+================================================================================
+
+Task: Task 16 - Rollback & Replay Proof
+Execution Date (UTC): 2026-09-05T15:35:00Z
+Git Commit SHA: 50a2844013dfa5fd2d6022b80cb8f1a676129514
+Parent Commit SHA: a29e96249630c7bccde7c0b69313b73c7f72c59c
+Python Version: 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
+Platform: win32
+Status: ALL VERIFICATIONS PASSED
+
+--------------------------------------------------------------------------------
+1. COMMAND: python -m pytest tests/unit/test_rollback.py -v
+Exit Code: 0
+STDOUT:
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 6 items
+
+tests/unit/test_rollback.py::test_rollback_restores_previous_prediction PASSED [ 16%]
+tests/unit/test_rollback.py::test_invalid_rollback_target_leaves_active_unchanged PASSED [ 33%]
+tests/unit/test_rollback.py::test_rollback_corrupted_target_rejected PASSED [ 50%]
+tests/unit/test_rollback.py::test_rollback_same_version_rejected PASSED  [ 66%]
+tests/unit/test_rollback.py::test_rollback_retains_candidate PASSED      [ 83%]
+tests/unit/test_rollback.py::test_rollback_cli_execution PASSED          [100%]
+
+======================== 6 passed in 74.48s (0:01:14) =========================
+
+--------------------------------------------------------------------------------
+2. COMMAND: python -m pytest tests/unit/test_evidence_gate.py -v
+Exit Code: 0
+STDOUT:
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 13 items
+
+tests/unit/test_evidence_gate.py::test_same_input_same_version_same_output PASSED [  7%]
+tests/unit/test_evidence_gate.py::test_candidate_worse_is_rejected PASSED [ 15%]
+tests/unit/test_evidence_gate.py::test_aggregate_10_percent_rule PASSED  [ 23%]
+tests/unit/test_evidence_gate.py::test_individual_window_no_regression PASSED [ 30%]
+tests/unit/test_evidence_gate.py::test_grouped_holdout_directional_agreement PASSED [ 38%]
+tests/unit/test_evidence_gate.py::test_common_population_coverage_contract PASSED [ 46%]
+tests/unit/test_evidence_gate.py::test_cost_delta_excludes_fixed_visit_cost PASSED [ 53%]
+tests/unit/test_evidence_gate.py::test_holdout_isolation_enforced_in_evaluation PASSED [ 61%]
+tests/unit/test_evidence_gate.py::test_production_pointer_unchanged_on_rejection PASSED [ 69%]
+tests/unit/test_evidence_gate.py::test_promotable_fixture_passes_and_promotes PASSED [ 76%]
+tests/unit/test_evidence_gate.py::test_common_population_exact_set_intersection PASSED [ 84%]
+tests/unit/test_evidence_gate.py::test_promotion_policy_authoritative_derivation_rejects_inconsistent_report PASSED [ 92%]
+tests/unit/test_evidence_gate.py::test_real_candidate_v0002_rejection_audit PASSED [100%]
+
+======================= 13 passed in 132.04s (0:02:12) ========================
+
+--------------------------------------------------------------------------------
+3. COMMAND: Operational Rollback CLI (scripts/rollback.py)
+--------------------------------------------------------------------------------
+
+A. Failure Path: python scripts/rollback.py --to v_nonexistent
+Exit Code: 1
+STDERR:
+ERROR: Rollback target validation failed: Rollback target package directory does not exist: models\v_nonexistent
+STDOUT:
+Current active: v0001
+Rollback target: v_nonexistent
+Target validation: FAIL (Rollback target package directory does not exist: models\v_nonexistent)
+
+B. Switch to Fixture: python scripts/rollback.py --to v_promotable
+Exit Code: 0
+STDOUT:
+Current active: v0001
+Rollback target: v_promotable
+Target validation: PASS
+Pre-rollback replay hash: sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+Atomic switch: PASS
+Post-rollback replay hash: sha256:cc57ce5e7b5c78163cba001365f2baac594f73abb17a8aa4c25e6b2aa1ac6d82
+Replay equality: PASS
+Active model: v_promotable
+
+C. Restore Baseline: python scripts/rollback.py --to v0001
+Exit Code: 0
+STDOUT:
+Current active: v_promotable
+Rollback target: v0001
+Target validation: PASS
+Pre-rollback replay hash: sha256:cc57ce5e7b5c78163cba001365f2baac594f73abb17a8aa4c25e6b2aa1ac6d82
+Atomic switch: PASS
+Post-rollback replay hash: sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+Replay equality: PASS
+Active model: v0001
+
+--------------------------------------------------------------------------------
+4. COMMAND: python scripts/make_submission.py --data ./data; python validate_submission.py predictions.csv (make run)
+Exit Code: 0
+STDOUT:
+Wrote predictions.csv - 120 rows over 8 weeks
+Submission validated successfully by validate_submission.py: PASS
+predictions.csv: OK
+  15 ranked gateways for each of 8 weeks, 2026-02-02 to 2026-03-23
+
+--------------------------------------------------------------------------------
+5. COMMAND: python -m pytest tests/ -q (Full Regression Suite)
+Exit Code: 0
+STDOUT:
+........................................................................ [ 34%]
+........................................................................ [ 68%]
+..................................................................       [100%]
+210 passed in 375.07s (0:06:15)
+
+--------------------------------------------------------------------------------
+6. TASK 16 CONTRACT COMPLIANCE MATRIX
+--------------------------------------------------------------------------------
+Contract Requirement                                  | Status | Evidence
+------------------------------------------------------|--------|------------------------------------------------
+1. Target Pre-Validation Before Mutation              | PASS   | test_invalid_rollback_target_leaves_active_unchanged
+2. Failure-Path Active Immutability                   | PASS   | test_invalid_rollback_target_leaves_active_unchanged (bytes identical)
+3. Pre-Rollback Replay Hash Capture                   | PASS   | test_rollback_restores_previous_prediction (pre_replay_hash recorded)
+4. Atomic Pointer Replacement (os.replace)            | PASS   | test_rollback_restores_previous_prediction (os.replace via tmp file)
+5. Deterministic Post-Rollback Replay Equality        | PASS   | test_rollback_restores_previous_prediction (hash equality proven)
+6. Restored Model Identical Output & Scores           | PASS   | test_rollback_restores_previous_prediction (row-for-row match)
+7. Audit Log History Appending (ROLLED_BACK)          | PASS   | test_rollback_restores_previous_prediction (history.jsonl entry)
+8. Candidate Artifact Retention                       | PASS   | test_rollback_retains_candidate (models/v_promotable intact)
+9. Idempotency / Same-Version Protection              | PASS   | test_rollback_same_version_rejected (RollbackError, active untouched)
+10. Operational CLI Output & Non-Zero Exit Behavior   | PASS   | test_rollback_cli_execution (8 status lines, exit 0/1)
+11. Real Candidate Rejection Invariant                | PASS   | test_real_candidate_v0002_rejection_audit (REJECT_GROUPED_DISAGREEMENT)
+12. Reviewer make run Integrity (120 rows)            | PASS   | make_submission + validate_submission.py OK
+13. Full Regression Suite (210 tests)                 | PASS   | 210 passed, 0 failed, 0 skipped
+
+--------------------------------------------------------------------------------
+7. OPERATIONS-MANAGER SUMMARY & GOVERNANCE RECORD
+--------------------------------------------------------------------------------
+The operational rollback mechanism was implemented and rigorously verified under the
+two-phase validation architecture:
+
+1. Fail-Closed Target Validation:
+   Before any state change occurs in registry/active.json, the rollback target package
+   undergoes comprehensive structural verification:
+   - Directory and artifact existence (manifest.json, model_config.json, schema.json, scorer_identity.txt)
+   - Schema conformance and manifest metadata integrity
+   - Executable smoke prediction producing exactly 15 ranked candidates and non-empty replay hash.
+   If target validation fails, registry/active.json remains strictly untouched, and the CLI exits non-zero (code 1).
+
+2. Replay Equality & Determinism Proof:
+   The rollback lifecycle was demonstrated using the committed lifecycle fixture (v_promotable):
+   - Active v0001 produces replay hash:
+     sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+   - Promoted v_promotable produces replay hash:
+     sha256:cc57ce5e7b5c78163cba001365f2baac594f73abb17a8aa4c25e6b2aa1ac6d82
+   - Executing rollback to v0001 atomically restores registry/active.json to v0001 and reproduces the
+     exact bit-for-bit identical replay hash:
+     sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+     with all 15 gateway ranks, scores, and reason strings identical to the pre-promotion run.
+
+3. Production Fleet Safety:
+   Production active model remains strictly on v0001. Real candidate v0002 remains legitimately rejected
+   (REJECT_GROUPED_DISAGREEMENT). Rollback operates with zero wall-clock dependencies, zero runtime network calls,
+   and zero side-effects on historical candidate artifacts.
+
+================================================================================
+END OF TASK 16 EXECUTION EVIDENCE
+================================================================================
