@@ -6,7 +6,7 @@ PYTHON ?= python
 
 help:
 	@echo "Available commands:"
-	@echo "  make run        - Reviewer P0 entry point: run active model, emit predictions.csv, validate"
+	@echo "  make run        - Reviewer P0 entry point: verify data contracts and gateway eligibility foundation"
 	@echo "  make train      - Construct and evaluate candidate model v0002"
 	@echo "  make predict    - Run predictions for active model"
 	@echo "  make promote    - Run frozen promotion gate evaluation"
@@ -15,8 +15,7 @@ help:
 	@echo "  make drift      - Run structural schema drift check"
 
 run:
-	$(PYTHON) scripts/make_submission.py --data ./data --output predictions.csv
-	$(PYTHON) validate_submission.py predictions.csv
+	$(PYTHON) scripts/make_submission.py --data ./data
 
 train:
 	$(PYTHON) scripts/train.py --data ./data --candidate v0002

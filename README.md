@@ -17,12 +17,10 @@ pip install -r requirements.lock
 make run
 ```
 
-`make run` executes the following single pipeline:
+`make run` executes the following single pipeline (Task 1 Foundation):
 1. Validates the execution environment and required data files.
-2. Resolves the active production model version from `registry/active.json`.
-3. Runs batch inference across all 8 required challenge weeks (Mondays: 2026-02-02 through 2026-03-23).
-4. Emits `predictions.csv` (strictly 120 rows: 8 weeks x top 15 visits).
-5. Runs `validate_submission.py predictions.csv` and reports PASS/FAIL.
+2. Loads master data with CP1252 encoding and ID normalization.
+3. Verifies gateway eligibility foundation across all 8 required challenge weeks (Mondays: 2026-02-02 through 2026-03-23).
 
 ## Architecture & Lifecycle Commands
 
