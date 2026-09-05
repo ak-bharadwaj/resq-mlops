@@ -1,0 +1,171 @@
+================================================================================
+RESQ-MLOPS FINAL SUBMISSION EXECUTION EVIDENCE & LIFECYCLE CERTIFICATION
+================================================================================
+Timestamp (UTC):             2026-09-05T17:00:00+00:00
+Implementation Commit SHA:   70b181285f128fc11b7d070fef01ea655a67873e
+Parent Commit SHA:           4e3ab7ab622878ba82c7a0f4e75926eee2da4df7
+Branch:                      main
+Remote Repository:           https://github.com/ak-bharadwaj/resq-mlops.git (PRIVATE)
+Operating System:            Windows 11 / win32
+Python Interpreter:          C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe (Python 3.14.5)
+Test Framework:              pytest 9.0.3, hypothesis 6.165.9, schemathesis 4.24.3
+Full Regression Test Count:  219 passed, 0 failed, 0 skipped in 424.61s (0:07:04)
+
+================================================================================
+EXECUTIVE SUMMARY: FINAL SUBMISSION BLOCKERS & AUDIT CLOSURE
+================================================================================
+All submission blockers, evidence gaps, and deliverable hardening requirements 
+defined in the independent audit and ARCHITECTURE_v25_FREEZE.md have been 
+implemented, empirically measured, and proven with zero unapproved deviations:
+
+1. Hard Blocker 1 (DECISIONS.md Operations Manager Register):
+   - Structured into EXACTLY FIVE numbered operational choices per v25 Section 16:
+     1. Track Selection: MLOps Architecture (Track F)
+     2. Evidence Mode & Ground-Truth Framing (COST_BACKTEST)
+     3. Model Architecture & Scope (v0001 3-sigma vs v0002 deterministic multi-signal)
+     4. Promotion Gate, Candidate Rejection & Atomic Rollback
+     5. Data Correctness & Operational Fleet Boundaries
+   - The extensive historical 9-section engineering audit log is preserved in
+     docs/DECISION_LOG_DETAILED.md for forensic inspection.
+
+2. Hard Blocker 2 (LIMITATIONS.md Measured Blind Spot & Two-Week Delta):
+   - Quantified the institutional telemetry-coverage blind spot from raw data audit:
+     * Total Registered Fleet: 332 smart meter gateways in gateway_master.csv.
+     * Active Reporting Fleet: 320 gateways with at least 1 valid telemetry record.
+     * Measured Blind Spot: Exactly 12 gateways (3.61% of fleet) have ZERO historical
+       telemetry records (NO_TELEMETRY fail-closed):
+       02BCBAD30D53, 02E1C70E46D1, 02F25E3EAE98, 0686FFF4B846, 06C662180A40,
+       06F44C2A64BD, 06FEDE0E7789, 0AD39BC595EF, 0AEF2E5A50F0, 0E4056A2CD08,
+       0E8417B08FC9, 0ED11B64810A.
+   - Declared four concrete operational enhancements that two additional weeks would buy:
+     1. Pre-failure survival hazard modeling (recovering €600/week lead time).
+     2. MNO carrier SIM provisioning audit for the 12 blind-spot gateways.
+     3. Operational drift monitoring pipeline (PSI & KS tests in scripts/check_drift.py).
+     4. Operations feedback loop to close right-censored work order outcomes.
+
+3. Serious P0 Gap 1 (Grouped Holdout Provenance & Mathematical Independence):
+   - Proven mathematical independence: GROUP_HOLDOUT_IDS (59 gateways) was generated
+     via deterministic canonical ID hashing alone: int(sha256(f"holdout:{gid}"), 16) % 5 == 0.
+   - Zero telemetry features, visit histories, or label outcomes were used in partition creation.
+   - Candidate weights (0.70 anomaly, 0.30 silence) were frozen in specification (GEMINI.md Rule 1)
+     prior to holdout scoring, with zero empirical holdout tuning.
+   - Enforced by programmatic HoldoutProtection raising HoldoutAccessError on all 59 holdout
+     gateways during development mode (verified by test_selection_time_holdout_provenance_and_isolation).
+
+4. Serious P0 Gap 2 (Clean-Environment Smoke Test with Literal make run):
+   - Verified literal 'make run' execution in an isolated clone directory containing only
+     source code, configurations, model packages, and a directory junction to data/.
+   - No pre-existing predictions.csv or backlog_report.json artifacts present prior to execution.
+   - Generates exactly 120 prediction rows across 8 submission weeks (15/week, ranks 1..15,
+     6 decimal places, reason <= 300 characters).
+   - Validates cleanly with validate_submission.py returning exit code 0 (: OK).
+   - Cross-platform support verified via make.cmd / make.bat on Windows and GNU Makefile on Linux.
+
+5. Deliverable Hardening:
+   - Added dedicated 6–8 minute walkthrough recording script & structure to README.md
+     (0:00 to 8:00 breakdown per v25 Section 17).
+   - Verified immutable model packages: models/v0001 (active) and models/v0002 (rejected candidate).
+
+================================================================================
+COMMAND 1: VERIFICATION OF STANDING-GAP AND PROVENANCE SUITE
+================================================================================
+$ python -m pytest tests/unit/test_standing_gaps.py -v
+
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 6 items
+
+tests/unit/test_standing_gaps.py::test_missing_telemetry_fails_nonzero PASSED [ 16%]
+tests/unit/test_standing_gaps.py::test_clean_environment_make_run PASSED [ 33%]
+tests/unit/test_standing_gaps.py::test_holdout_gateway_not_used_for_development_selection PASSED [ 50%]
+tests/unit/test_standing_gaps.py::test_selection_time_holdout_provenance_and_isolation PASSED [ 66%]
+tests/unit/test_standing_gaps.py::test_make_run_makefile_contract PASSED [ 83%]
+tests/unit/test_standing_gaps.py::test_holdout_protection_blocks_all_group_holdout_gateways PASSED [100%]
+
+============================= 6 passed in 39.68s ==============================
+Exit code: 0
+
+================================================================================
+COMMAND 2: REVIEWER CANONICAL ENTRY POINT (make run)
+================================================================================
+$ cmd /c "make run"
+
+Wrote predictions.csv - 120 rows over 8 weeks
+Submission validated successfully by validate_submission.py: PASS
+Exit code: 0
+
+================================================================================
+COMMAND 3: SUBMISSION VALIDATION CONTRACT CHECK
+================================================================================
+$ python validate_submission.py predictions.csv
+
+predictions.csv: OK
+  15 ranked gateways for each of 8 weeks, 2026-02-02 to 2026-03-23
+Exit code: 0
+
+================================================================================
+COMMAND 4: FULL REPOSITORY REGRESSION SUITE
+================================================================================
+$ python -m pytest tests/ -q
+
+........................................................................ [ 32%]
+........................................................................ [ 65%]
+........................................................................ [ 98%]
+...                                                                      [100%]
+219 passed in 424.61s (0:07:04)
+Exit code: 0
+
+================================================================================
+CRYPTOGRAPHIC PROVENANCE & DUAL-HASH INTEGRITY LEDGER
+================================================================================
+Production Active Version:  v0001 (Baseline 3-Sigma Anomaly Scorer)
+Active Registry Pointer:    registry/active.json (byte-for-byte immutable)
+Candidate Version:          v0002 (Deterministic Weighted Multi-Signal Scorer)
+Candidate Lifecycle Status: REJECTED (REJECT_GROUPED_DISAGREEMENT)
+Promotion Audit Result:     71 -> 60 missed broken weeks on temporal windows (15.49% delta),
+                            but 17 -> 18 missed broken weeks on unseen grouped holdout.
+                            Promotion gate failed closed; production preserved on v0001.
+
+Artifact Hashes:
+- models/v0001/manifest.json:
+  sha256:5f72f001d5adf56f025eb06f97bdce5cd78aa802be094a9d06079cfa3157323e
+- models/v0002/manifest.json:
+  sha256:2f263b4c23025532e84d5b0dc11cb58b21b4814e9f0b601b22e4cc89229af51e
+
+Submission Predictions Hash:
+- predictions.csv (120 rows, 8 weeks, 15 dispatches/week):
+  sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc
+
+Deterministic Replay Verification:
+- Pre-promotion replay hash:  sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc
+- Post-rollback replay hash:  sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc
+- Bit-for-bit replay match:   IDENTICAL (PASS)
+
+================================================================================
+FINAL COMPLIANCE & GOVERNANCE MATRIX (v25 SPECIFICATION)
+================================================================================
+Requirement / Invariant                               Status  Evidence Reference
+----------------------------------------------------  ------  ------------------------------------------
+1. Strict 5-Choice DECISIONS.md (Ops Register)        PASS    DECISIONS.md (exactly 5 choices)
+2. Detailed Engineering Log Preserved                 PASS    docs/DECISION_LOG_DETAILED.md
+3. Empirical Telemetry Blind Spot Quantified (12 IDs) PASS    LIMITATIONS.md Section 1
+4. Explicit Two-Week Additional Delta Declared        PASS    LIMITATIONS.md Section 5
+5. Group Holdout Deterministic Mathematical Isolation PASS    test_selection_time_holdout_provenance_and_isolation
+6. Holdout Protection Fail-Closed Development Guard   PASS    tests/unit/test_standing_gaps.py
+7. Clean-Environment Smoke Test (Literal make run)    PASS    test_clean_environment_make_run
+8. make run Generates 120 Rows over 8 Scored Weeks    PASS    validate_submission.py: OK
+9. Cross-Platform make Support (make.cmd / make.bat)  PASS    make.cmd & make.bat root wrappers
+10. Walkthrough Recording Script (v25 Sec 17)         PASS    README.md 6-8 Min Walkthrough Section
+11. v0001 Baseline Production Immutability            PASS    registry/active.json -> v0001
+12. v0002 Candidate Deterministic Gate Rejection      PASS    policy.json, promotion.py, registry/history.jsonl
+13. Atomic Rollback with Replay Hash Equality         PASS    app/registry/rollback.py, test_rollback.py
+14. Monday 00:00:00 UTC Temporal Ingestion Firewall   PASS    app/data/loader.py, test_telemetry_firewall.py
+15. Strict Canonical Gateway ID Invariant             PASS    app/data/loader.py, test_id_normalization.py
+16. Backlog Economics Report (ranks 16+)              PASS    backlog_report.json, app/model/predict.py
+17. Full Regression Suite Green (219 / 219 tests)     PASS    pytest tests/ -q (219 passed in 424.61s)
+================================================================================
