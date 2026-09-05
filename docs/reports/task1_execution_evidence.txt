@@ -1,0 +1,90 @@
+================================================================================
+                    TASK 1 EXECUTION EVIDENCE ARTIFACT                         
+================================================================================
+Execution Date/Time (UTC) : 2026-09-05T08:37:49.935027+00:00
+Git Commit SHA            : fcf4373fe3a3f1ceea1a23c76084bf63a9403a69
+Git Branch                : main
+Python Version            : 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
+Platform / OS             : Windows 11 (AMD64)
+================================================================================
+
+--------------------------------------------------------------------------------
+COMMAND 1: C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe scripts/make_submission.py --data ./data (make run)
+EXIT CODE: 0
+--------------------------------------------------------------------------------
+[STDOUT]
+[Phase 1 Foundation] Loaded 332 master gateways from data
+[Phase 1 Foundation] Data contracts verified across all 8 challenge weeks.
+[Task 1 Notice] Model scoring logic (v0001/v0002) is unproven/not yet implemented in Task 1.
+
+--------------------------------------------------------------------------------
+COMMAND 2: C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe -m pytest tests/ -v (make test)
+EXIT CODE: 0
+--------------------------------------------------------------------------------
+[STDOUT]
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: c:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 45 items
+
+tests/unit/test_architecture.py::test_zero_wall_clock_in_production_code PASSED [  2%]
+tests/unit/test_architecture.py::test_prediction_never_imports_evaluation_or_labels PASSED [  4%]
+tests/unit/test_cli_data_path.py::test_cli_data_propagation_to_alternate_directory PASSED [  6%]
+tests/unit/test_cli_data_path.py::test_cli_data_rejects_nonexistent_directory PASSED [  8%]
+tests/unit/test_duplicates.py::test_exact_duplicates_deduplicated_deterministically PASSED [ 11%]
+tests/unit/test_duplicates.py::test_conflicting_duplicates_raises_conflicting_record_error PASSED [ 13%]
+tests/unit/test_eligibility.py::test_eligibility_boundary_cases PASSED   [ 15%]
+tests/unit/test_id_normalization.py::test_canonicalize_bare_uppercase PASSED [ 17%]
+tests/unit/test_id_normalization.py::test_canonicalize_bare_lowercase PASSED [ 20%]
+tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_uppercase PASSED [ 22%]
+tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_lowercase PASSED [ 24%]
+tests/unit/test_id_normalization.py::test_canonicalize_leading_trailing_whitespace PASSED [ 26%]
+tests/unit/test_id_normalization.py::test_canonicalize_mixed_case PASSED [ 28%]
+tests/unit/test_id_normalization.py::test_multiple_accepted_representations_produce_same_canonical_id PASSED [ 31%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_null_and_nan PASSED [ 33%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_empty_string PASSED [ 35%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_whitespace_only PASSED [ 37%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_hex_characters PASSED [ 40%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_incorrect_length PASSED [ 42%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_scalar_types PASSED [ 44%]
+tests/unit/test_id_normalization.py::test_single_normalization_path_ast_enforcement PASSED [ 46%]
+tests/unit/test_id_normalization.py::test_gateway_master_loader_canonicalization PASSED [ 48%]
+tests/unit/test_id_normalization.py::test_field_visits_loader_canonicalization PASSED [ 51%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_canonicalization PASSED [ 53%]
+tests/unit/test_id_normalization.py::test_downstream_join_on_canonical_representation PASSED [ 55%]
+tests/unit/test_id_normalization.py::test_collision_safety_master_equivalent_representations PASSED [ 57%]
+tests/unit/test_id_normalization.py::test_collision_safety_master_distinct_records_block PASSED [ 60%]
+tests/unit/test_id_normalization.py::test_collision_safety_telemetry_equivalent_representations PASSED [ 62%]
+tests/unit/test_id_normalization.py::test_collision_safety_telemetry_distinct_records_block PASSED [ 64%]
+tests/unit/test_id_normalization.py::test_collision_safety_field_visits_conflicting_visit_id_blocks PASSED [ 66%]
+tests/unit/test_id_normalization.py::test_loader_numeric_gateway_id_leading_zeros_preserved PASSED [ 68%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_column_projection_with_canonical_id PASSED [ 71%]
+tests/unit/test_id_normalization.py::test_telemetry_duplicate_resolution_with_raw_ts_utc_differences PASSED [ 73%]
+tests/unit/test_id_normalization.py::test_resolve_telemetry_duplicates_infers_canonical_id PASSED [ 75%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_real_data_canonicalization PASSED [ 77%]
+tests/unit/test_loaders_and_encoding.py::test_gateway_master_cp1252_synthetic_german_characters PASSED [ 80%]
+tests/unit/test_loaders_and_encoding.py::test_gateway_master_real_data PASSED [ 82%]
+tests/unit/test_loaders_and_encoding.py::test_field_visits_real_data PASSED [ 84%]
+tests/unit/test_offline_contract.py::test_runtime_offline_contract PASSED [ 86%]
+tests/unit/test_schema_and_reasons.py::test_missing_data_reasons_distinct PASSED [ 88%]
+tests/unit/test_schema_and_reasons.py::test_zero_telemetry_vs_recently_silent PASSED [ 91%]
+tests/unit/test_schema_and_reasons.py::test_schema_validation_success PASSED [ 93%]
+tests/unit/test_schema_and_reasons.py::test_schema_validation_missing_columns PASSED [ 95%]
+tests/unit/test_schema_and_reasons.py::test_source_completeness_guard_trips_on_systemic_absence PASSED [ 97%]
+tests/unit/test_utc_cutoff.py::test_production_load_telemetry_window_utc_boundary PASSED [100%]
+
+============================= 45 passed in 6.45s ==============================
+
+================================================================================
+                    TEST SUITE EXECUTION SUMMARY                                
+================================================================================
+Passed  : 45
+Failed  : 0
+Skipped : 0
+Total   : 45
+Verdict : PASS (Task 1 Execution Evidence Verified)
+================================================================================
