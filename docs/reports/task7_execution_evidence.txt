@@ -1,24 +1,25 @@
 ================================================================================
                     TASK 7 EXECUTION EVIDENCE ARTIFACT                         
 ================================================================================
-Execution Date/Time (UTC) : 2026-09-05T09:30:00+00:00
+Execution Date/Time (UTC) : 2026-09-05T09:34:40.744591+00:00
 Git Implementation Commit : 7aeac0a731326f68456487454a75f3a0691e324d
 Git Branch                : main
 
 Python Version            : 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
-Platform / OS             : Windows 11 (AMD64)
+Platform / OS             : Windows-11-10.0.26200-SP0
 ================================================================================
 
 --------------------------------------------------------------------------------
-COMMAND 1: python -m pytest tests/unit/test_duplicates.py -v
-EXIT CODE: 0
+COMMAND 1: Dedicated Task-7 Duplicate Tests
+COMMAND   : python -m pytest tests/unit/test_duplicates.py -v
+EXIT CODE : 0
 --------------------------------------------------------------------------------
 [STDOUT]
 ============================= test session starts =============================
 platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
 cachedir: .pytest_cache
 hypothesis profile 'default'
-rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+rootdir: c:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
 collecting ... collected 20 items
@@ -29,10 +30,10 @@ tests/unit/test_duplicates.py::test_master_exact_duplicates_collapse_and_log PAS
 tests/unit/test_duplicates.py::test_master_equivalent_raw_ids_collapse_and_log PASSED [ 20%]
 tests/unit/test_duplicates.py::test_master_conflicting_attributes_raise_conflicting_record_error PASSED [ 25%]
 tests/unit/test_duplicates.py::test_master_conflicting_meters_blocks_ingestion PASSED [ 30%]
-tests/unit/test_field_visits.py::test_field_visits_exact_duplicates_collapse_and_log PASSED [ 35%]
-tests/unit/test_field_visits.py::test_field_visits_equivalent_duplicates_collapse_and_log PASSED [ 40%]
-tests/unit/test_field_visits.py::test_field_visits_conflicting_visit_id_raises_conflicting_record_error PASSED [ 45%]
-tests/unit/test_field_visits.py::test_field_visits_conflicting_gateway_for_same_visit_id_blocks PASSED [ 50%]
+tests/unit/test_duplicates.py::test_field_visits_exact_duplicates_collapse_and_log PASSED [ 35%]
+tests/unit/test_duplicates.py::test_field_visits_equivalent_duplicates_collapse_and_log PASSED [ 40%]
+tests/unit/test_duplicates.py::test_field_visits_conflicting_visit_id_raises_conflicting_record_error PASSED [ 45%]
+tests/unit/test_duplicates.py::test_field_visits_conflicting_gateway_for_same_visit_id_blocks PASSED [ 50%]
 tests/unit/test_duplicates.py::test_telemetry_exact_duplicates_collapse_and_log PASSED [ 55%]
 tests/unit/test_duplicates.py::test_telemetry_equivalent_raw_formatting_collapses_and_logs PASSED [ 60%]
 tests/unit/test_duplicates.py::test_telemetry_conflicting_measurements_raise_conflicting_record_error PASSED [ 65%]
@@ -44,18 +45,39 @@ tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_mast
 tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_visits_blocks_pipeline PASSED [ 95%]
 tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_telemetry_blocks_pipeline PASSED [100%]
 
-============================= 20 passed in 3.29s ==============================
+============================= 20 passed in 3.88s ==============================
 
 --------------------------------------------------------------------------------
-COMMAND 2: python -m pytest tests/ -v (Full regression suite)
-EXIT CODE: 0
+COMMAND 2: Connected Ingestion & Downstream Join Integration Tests
+COMMAND   : python -m pytest tests/integration/test_parallel_wave_integration.py -v
+EXIT CODE : 0
 --------------------------------------------------------------------------------
 [STDOUT]
 ============================= test session starts =============================
 platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
 cachedir: .pytest_cache
 hypothesis profile 'default'
-rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+rootdir: c:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 2 items
+
+tests/integration/test_parallel_wave_integration.py::test_parallel_wave_e2e_connected_pipeline PASSED [ 50%]
+tests/integration/test_parallel_wave_integration.py::test_parallel_wave_synthetic_e2e_pipeline PASSED [100%]
+
+============================== 2 passed in 9.71s ==============================
+
+--------------------------------------------------------------------------------
+COMMAND 3: Full Repository Regression Suite
+COMMAND   : python -m pytest tests/ -v
+EXIT CODE : 0
+--------------------------------------------------------------------------------
+[STDOUT]
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: c:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
 collecting ... collected 115 items
@@ -108,8 +130,8 @@ tests/unit/test_field_visits.py::test_load_field_visits_conflicting_visit_id_blo
 tests/unit/test_field_visits.py::test_load_field_visits_invalid_date_order_blocks PASSED [ 40%]
 tests/unit/test_field_visits.py::test_load_field_visits_negative_technician_hours_blocks PASSED [ 40%]
 tests/unit/test_field_visits.py::test_load_field_visits_missing_file_raises_filenotfound PASSED [ 41%]
-tests/unit/test_anti_fake_field_visits_duplicate_safety PASSED [ 42%]
-tests/unit/test_anti_fake_field_visits_schema_validation_fails_closed PASSED [ 43%]
+tests/unit/test_field_visits.py::test_anti_fake_field_visits_duplicate_safety PASSED [ 42%]
+tests/unit/test_field_visits.py::test_anti_fake_field_visits_schema_validation_fails_closed PASSED [ 43%]
 tests/unit/test_gateway_master.py::test_gateway_master_real_data PASSED  [ 44%]
 tests/unit/test_gateway_master.py::test_gateway_master_cp1252_german_characters PASSED [ 45%]
 tests/unit/test_gateway_master.py::test_gateway_master_schema_contract_validation PASSED [ 46%]
@@ -118,7 +140,7 @@ tests/unit/test_gateway_master.py::test_gateway_master_loader_negative_meters_bl
 tests/unit/test_gateway_master.py::test_gateway_master_equivalent_representation_collapsing PASSED [ 48%]
 tests/unit/test_gateway_master.py::test_gateway_master_conflicting_attributes_blocking PASSED [ 49%]
 tests/unit/test_gateway_master.py::test_gateway_master_leading_zero_preservation PASSED [ 50%]
-tests/unit/test_anti_fake_gateway_master_validation_and_canonicalization PASSED [ 51%]
+tests/unit/test_gateway_master.py::test_anti_fake_gateway_master_validation_and_canonicalization PASSED [ 51%]
 tests/unit/test_id_normalization.py::test_canonicalize_bare_uppercase PASSED [ 52%]
 tests/unit/test_id_normalization.py::test_canonicalize_bare_lowercase PASSED [ 53%]
 tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_uppercase PASSED [ 53%]
@@ -176,11 +198,12 @@ tests/unit/test_telemetry_firewall.py::test_load_telemetry_window_enforces_schem
 tests/unit/test_telemetry_firewall.py::test_telemetry_schema_contract_validation PASSED [ 99%]
 tests/unit/test_utc_cutoff.py::test_production_load_telemetry_window_utc_boundary PASSED [100%]
 
-============================ 115 passed in 24.31s =============================
+============================ 115 passed in 23.87s =============================
 
 --------------------------------------------------------------------------------
-COMMAND 3: python scripts/predict.py --data ./data
-EXIT CODE: 0
+COMMAND 4: Active Model CLI Prediction Verification
+COMMAND   : python scripts/predict.py --data ./data
+EXIT CODE : 0
 --------------------------------------------------------------------------------
 [STDOUT]
 Active model: v0001
@@ -188,11 +211,19 @@ Data source: C:\Users\dorni\OneDrive\Desktop\lpdg\data
 Week: 2026-02-02 | Eligible gateways: 290 of 332
 
 --------------------------------------------------------------------------------
-COMMAND 4: python scripts/make_submission.py --data ./data
-EXIT CODE: 0
+COMMAND 5: Reviewer Single Entry-Point Verification
+COMMAND   : python scripts/make_submission.py --data ./data
+EXIT CODE : 0
 --------------------------------------------------------------------------------
 [STDOUT]
 [Phase 1 Foundation] Loaded 332 master gateways from data
 [Phase 1 Foundation] Data contracts verified across all 8 challenge weeks.
 [Task 1 Notice] Model scoring logic (v0001/v0002) is unproven/not yet implemented in Task 1.
+
+================================================================================
+VERIFICATION SUMMARY:
+- Dedicated Task-7 tests : 20 passed / 20 collected, 0 failed, 0 skipped
+- Connected tests        : 2 passed / 2 collected, 0 failed, 0 skipped
+- Full regression suite  : 115 passed / 115 collected, 0 failed, 0 skipped
+- CLI & make_submission  : Clean zero exit codes, data contracts verified
 ================================================================================
