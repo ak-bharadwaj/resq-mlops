@@ -1,5 +1,5 @@
 # Data directory (P0 constraint - strictly prohibited from repository commit)
-data/
+/data/
 *.parquet
 *.xlsx
 *.zip
@@ -42,3 +42,4 @@ brief_text.txt
 data_dict_text.txt
 brief.pdf
 data_dict.pdf
+predictions.csv
