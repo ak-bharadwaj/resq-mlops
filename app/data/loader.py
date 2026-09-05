@@ -204,7 +204,7 @@ def load_field_visits(data_dir: pathlib.Path) -> pd.DataFrame:
 
 def get_gateway_eligibility(
     master_df: pd.DataFrame,
-    monday: dt.date,
+    monday: Any,
 ) -> pd.DataFrame:
     """Evaluate gateway eligibility for a given scored Monday.
 
@@ -213,25 +213,43 @@ def get_gateway_eligibility(
       AND
       (decommissioned_on is null OR decommissioned_on > Monday)
     - Eligibility filtering is mandatory BEFORE feature construction and ranking;
-      it is never inferred from telemetry presence.
+      it is never inferred from telemetry presence or telemetry absence.
     - Tags each gateway with is_eligible (bool) and exclusion_reason (MissingDataReason | None).
+    - Preserves canonical_id and all master attributes.
     """
+    if master_df.empty:
+        df = master_df.copy()
+        df["is_eligible"] = pd.Series(dtype=bool)
+        df["exclusion_reason"] = pd.Series(dtype=object)
+        return df
+
     df = master_df.copy()
-    installed_ts = pd.to_datetime(df["installed_on"])
-    decom_ts = pd.to_datetime(df["decommissioned_on"])
-    monday_ts = pd.to_datetime(monday)
-    installed = installed_ts <= monday_ts
+    if "canonical_id" not in df.columns and "gateway_id" in df.columns:
+        df["canonical_id"] = df["gateway_id"].apply(canonicalize_gateway_id)
+
+    # Normalize monday parameter to date midnight Timestamp (naive)
+    if hasattr(monday, "date") and callable(getattr(monday, "date")):
+        monday_date = monday.date()
+    elif isinstance(monday, str):
+        monday_date = pd.to_datetime(monday).date()
+    else:
+        monday_date = pd.to_datetime(monday).date()
+
+    monday_ts = pd.Timestamp(monday_date)
+
+    # Parse installed_on and decommissioned_on as naive date midnight Timestamps
+    installed_ts = pd.to_datetime(df["installed_on"]).dt.tz_localize(None).dt.floor("D")
+    decom_ts = pd.to_datetime(df["decommissioned_on"]).dt.tz_localize(None).dt.floor("D")
+
+    installed_eligible = installed_ts <= monday_ts
     not_decommissioned = decom_ts.isna() | (decom_ts > monday_ts)
-    is_eligible = installed & not_decommissioned
+    is_eligible = installed_eligible & not_decommissioned
 
-    df["is_eligible"] = is_eligible
-
-    def assign_reason(row: pd.Series) -> Optional[str]:
-        if row["is_eligible"]:
-            return None
-        return MissingDataReason.INELIGIBLE_DATE.value
-
-    df["exclusion_reason"] = df.apply(assign_reason, axis=1)
+    df["is_eligible"] = is_eligible.astype(bool)
+    df["exclusion_reason"] = [
+        None if e else MissingDataReason.INELIGIBLE_DATE.value
+        for e in df["is_eligible"]
+    ]
     return df
 
 
