@@ -6,12 +6,14 @@ P0 Requirements Tested:
 3. aggregate_10_percent_rule (minimum 10% cost reduction required)
 4. individual_window_no_regression (zero window regression allowed)
 5. grouped_holdout_directional_agreement (holdout hardware must agree in direction)
-6. common_population_coverage_contract (coverage >= 0.90 enforced)
+6. common_population_coverage_contract (coverage >= 0.90 enforced via true set intersection)
 7. cost_delta_excludes_fixed_visit_cost (fixed €45,600 excluded from promotion delta)
 8. holdout_isolation_enforced_in_evaluation (GROUP_HOLDOUT_IDS segregated)
 9. production_pointer_unchanged_on_rejection (active.json byte-for-byte untouched on reject)
 10. promotable_fixture_passes_and_promotes (positive promotion path verified)
 11. real_candidate_v0002_rejection_audit (real v0002 legitimately triggers REJECT_GROUPED_DISAGREEMENT)
+12. common_population_exact_set_intersection (true intersection A & B, not min(len(A), len(B)))
+13. promotion_policy_authoritative_derivation (independently derives imp_pct and cov_ratio)
 """
 from __future__ import annotations
 
@@ -20,6 +22,9 @@ import pathlib
 import pytest
 import pandas as pd
 
+from app.data.loader import get_gateway_eligibility, load_gateway_master
+from app.data.quality import HoldoutAccessError, HoldoutProtection
+from app.features.holdout import load_group_holdout_ids
 from app.model.evaluate import (
     ROLLING_WINDOWS,
     evaluate_candidate_against_active,
@@ -30,7 +35,6 @@ from app.registry.promotion import (
     promote_candidate,
     PromotionDecision,
 )
-from app.features.holdout import load_group_holdout_ids
 from tests.fixtures.lifecycle_fixtures import make_fixture_report
 
 
@@ -148,12 +152,47 @@ def test_cost_delta_excludes_fixed_visit_cost():
 
 
 def test_holdout_isolation_enforced_in_evaluation():
-    """Test 8: Grouped holdout gateways are isolated from temporal window evaluation."""
+    """Test 8: Grouped holdout gateways are strictly excluded from development evaluation."""
+    data_dir = pathlib.Path("data")
+    if not data_dir.exists():
+        pytest.skip("Data directory not available for holdout isolation test")
+
+    master_df = load_gateway_master(data_dir)
     holdout_ids = load_group_holdout_ids()
     assert len(holdout_ids) == 59, f"Expected 59 grouped holdout gateways, got {len(holdout_ids)}"
-    for gid in holdout_ids:
-        assert len(gid) == 12
-        assert gid.isalnum()
+
+    all_mondays = []
+    for w_info in ROLLING_WINDOWS.values():
+        all_mondays.extend(w_info["mondays"])
+
+    # Verify for every single evaluation Monday:
+    for m_str in all_mondays:
+        m_date = pd.to_datetime(m_str).date()
+        elig_df = get_gateway_eligibility(master_df, m_date)
+        el_gids = set(elig_df[elig_df["is_eligible"]]["canonical_id"])
+
+        dev_gids = el_gids - holdout_ids
+        h_gids = el_gids & holdout_ids
+
+        # 1. Dev fleet has strictly ZERO intersection with holdout
+        assert dev_gids.isdisjoint(holdout_ids), f"Holdout IDs found in dev fleet on {m_str}!"
+        assert len(dev_gids & holdout_ids) == 0
+
+        # 2. Holdout fleet is strictly a subset of holdout_ids
+        assert h_gids.issubset(holdout_ids), f"Non-holdout IDs found in holdout fleet on {m_str}!"
+        assert len(h_gids - holdout_ids) == 0
+
+        # 3. Dev and holdout fleets are mutually disjoint
+        assert dev_gids.isdisjoint(h_gids), f"Overlap between dev and holdout fleets on {m_str}!"
+
+        # 4. Programmatic firewall verification: accessing holdouts without authorization raises
+        for gid in list(h_gids)[:5]:
+            with pytest.raises(HoldoutAccessError):
+                HoldoutProtection.check_gateway_access(gid, holdout_ids, allow_holdout=False)
+
+        # 5. Programmatic firewall verification: accessing dev gateways without authorization succeeds
+        for gid in list(dev_gids)[:5]:
+            HoldoutProtection.check_gateway_access(gid, holdout_ids, allow_holdout=False)  # succeeds without raising
 
 
 def test_production_pointer_unchanged_on_rejection(tmp_path):
@@ -229,8 +268,67 @@ def test_promotable_fixture_passes_and_promotes(tmp_path):
     assert last_event["version"] == "v_promotable"
 
 
+def test_common_population_exact_set_intersection():
+    """Test 11: Common population computes actual set intersection (A & B), not min(len(A), len(B))."""
+    # If active valid count is 100 and candidate valid count is 100, but only 50 are shared (true intersection),
+    # coverage ratio must be 50 / 100 = 0.50, rejecting with REJECT_COVERAGE (not 100 / 100 = 1.0)
+    report = make_fixture_report(
+        candidate_version="v_intersection_test",
+        coverage_ratio=0.50,
+    )
+    report_dict = report.model_dump()
+    report_dict["coverage"] = {
+        "evaluation_population_total": 100,
+        "active_valid_count": 100,
+        "candidate_valid_count": 100,
+        "common_valid_count": 50,  # actual intersection len(active_set & cand_set)
+        "excluded_due_to_model_input": 50,
+        "coverage_ratio": 0.50,
+        "minimum_coverage_ratio": 0.90,
+        "passes_coverage": False,
+    }
+
+    decision = evaluate_promotion_policy(report_dict)
+    assert decision.decision == "REJECT"
+    assert decision.reason_code == "REJECT_COVERAGE"
+    assert decision.coverage_ratio == 0.50
+
+
+def test_promotion_policy_authoritative_derivation_rejects_inconsistent_report():
+    """Test 12: Policy authoritatively derives metrics and rejects fake summary numbers."""
+    # Tampered report: summary claims 25.0% improvement and 1.0 coverage,
+    # but underlying windows show active=71, candidate=68 (4.23% real)
+    # and coverage has common_valid_count=700 / 1000 (0.70 real coverage).
+    report = make_fixture_report(
+        candidate_version="v_tampered_test",
+        window_missed_pairs={"window_1": (32, 31), "window_2": (24, 23), "window_3": (15, 14)},
+        holdout_missed_pair=(17, 15),
+    )
+    report_dict = report.model_dump()
+    # Inject forged summary fields
+    report_dict["aggregate_improvement_percent"] = 25.0
+    report_dict["coverage"]["coverage_ratio"] = 1.0
+    report_dict["coverage"]["common_valid_count"] = 700
+    report_dict["coverage"]["active_valid_count"] = 1000
+    report_dict["coverage"]["candidate_valid_count"] = 1000
+
+    # 1. Policy independently derives coverage = 700/1000 = 0.70 < 0.90 -> REJECT_COVERAGE
+    decision = evaluate_promotion_policy(report_dict)
+    assert decision.decision == "REJECT"
+    assert decision.reason_code == "REJECT_COVERAGE"
+    assert decision.coverage_ratio == 0.70
+
+    # 2. Fix coverage to 1000/1000, keep forged improvement (claimed 25%, real 4.23%)
+    report_dict["coverage"]["common_valid_count"] = 1000
+    decision2 = evaluate_promotion_policy(report_dict)
+    assert decision2.decision == "REJECT"
+    assert decision2.reason_code == "REJECT_NOT_BETTER"
+    # Authoritative calculation overrides the forged 25.0%
+    assert decision2.aggregate_improvement_percent == pytest.approx(4.23, abs=0.01)
+
+
 def test_real_candidate_v0002_rejection_audit():
-    """Test 11: Real candidate v0002 on real data legitimately triggers REJECT_GROUPED_DISAGREEMENT."""
+    """Test 13: Real candidate v0002 on real data legitimately triggers REJECT_GROUPED_DISAGREEMENT."""
     data_dir = pathlib.Path("data")
     if not data_dir.exists():
         pytest.skip("Data directory not available for real data evaluation test")
@@ -261,12 +359,21 @@ def test_real_candidate_v0002_rejection_audit():
     assert report.grouped_holdout.candidate_missed_broken_weeks == 18
     assert not report.grouped_holdout.directional_agreement
 
-    # 3. Policy evaluation
+    # 3. Coverage check (actual set intersection)
+    assert report.coverage.coverage_ratio == 1.0
+    assert report.coverage.common_valid_count > 0
+    assert report.coverage.passes_coverage
+
+    # 4. Holdout isolation check
+    assert report.development_gateways_count > 0
+    assert report.holdout_gateways_count == 59
+
+    # 5. Policy evaluation
     decision = evaluate_promotion_policy(report)
     assert decision.decision == "REJECT"
     assert decision.reason_code == "REJECT_GROUPED_DISAGREEMENT"
     assert "grouped holdout" in decision.explanation.lower()
 
-    # 4. Production active version must remain v0001
+    # 6. Production active version must remain v0001
     active_ver = resolve_active_model_version(pathlib.Path("registry/active.json"))
     assert active_ver == "v0001"

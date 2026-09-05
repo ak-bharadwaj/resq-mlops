@@ -105,5 +105,7 @@ def make_fixture_report(
         has_window_regression=any(w.is_regression for w in windows.values()),
         grouped_holdout=grouped,
         coverage=cov,
+        development_gateways_count=273,
+        holdout_gateways_count=59,
         created_at_utc="2026-09-05T00:00:00Z",
     )

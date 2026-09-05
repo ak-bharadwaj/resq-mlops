@@ -338,4 +338,5 @@ def predict_week(
         "replay_hash": replay_hash,
         "active_version": active_version,
         "week_start": monday.isoformat(),
+        "scored_gateway_ids": [rec["gateway_id"] for rec in scored_records],
     }

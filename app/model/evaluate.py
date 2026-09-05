@@ -337,6 +337,8 @@ class MultiWindowEvaluationReport(BaseModel):
     has_window_regression: bool
     grouped_holdout: GroupedHoldoutEvaluationResult
     coverage: CoverageEvaluationResult
+    development_gateways_count: int = 0
+    holdout_gateways_count: int = 59
     created_at_utc: str = "2026-09-05T00:00:00Z"
 
     model_config = {"frozen": True}
@@ -358,7 +360,7 @@ def evaluate_candidate_against_active(
     Contract Invariants (Section 8, 8A, 8B, 8C, 8D):
     1. Evaluates candidate against active across 3 expanding rolling windows (13 Mondays).
     2. Isolated grouped holdout (GROUP_HOLDOUT_IDS) evaluated separately.
-    3. Common valid population enforcement: coverage_ratio >= 0.90.
+    3. Common valid population enforcement: coverage_ratio >= 0.90 via true set intersection.
     4. Fixed €380 visit cost (€45,600) is informational only and excluded from promotion delta.
     5. Delta is strictly missed_broken_gateway_weeks * €600.
     6. Emits immutable evaluation evidence report to runs/evaluation/eval_{candidate_version}.json.
@@ -389,10 +391,12 @@ def evaluate_candidate_against_active(
     act_holdout_missed = 0
     cand_holdout_missed = 0
 
-    pop_total = 0
-    act_valid_total = 0
-    cand_valid_total = 0
-    common_valid_total = 0
+    # Section 8A: Actual set intersection tracking across gateway-weeks (gid, m_str)
+    eligible_gw_weeks: Set[Tuple[str, str]] = set()
+    active_valid_gw_weeks: Set[Tuple[str, str]] = set()
+    candidate_valid_gw_weeks: Set[Tuple[str, str]] = set()
+    all_dev_gids_seen: Set[str] = set()
+    all_holdout_gids_seen: Set[str] = set()
 
     # Single-pass execution over 13 Mondays
     for m_str in all_mondays:
@@ -414,20 +418,29 @@ def evaluate_candidate_against_active(
         act_top15 = {p["gateway_id"] for p in act_res["predictions"]}
         cand_top15 = {p["gateway_id"] for p in cand_res["predictions"]}
 
-        # Eligibility
+        # Eligibility & population tracking
         elig_df = get_gateway_eligibility(master_df, m_date)
         el_gids = set(elig_df[elig_df["is_eligible"]]["canonical_id"])
-        pop_total += len(el_gids)
+        for gid in el_gids:
+            eligible_gw_weeks.add((gid, m_str))
 
-        act_valid = len(act_res.get("predictions", [])) + act_res.get("backlog_report", {}).get("deferred_count", 0)
-        cand_valid = len(cand_res.get("predictions", [])) + cand_res.get("backlog_report", {}).get("deferred_count", 0)
-        act_valid_total += act_valid
-        cand_valid_total += cand_valid
-        common_valid_total += min(act_valid, cand_valid)
+        # Scored IDs for Active Model
+        act_scored_gids = set(act_res.get("scored_gateway_ids") or [p["gateway_id"] for p in act_res.get("predictions", [])])
+        for gid in act_scored_gids:
+            active_valid_gw_weeks.add((gid, m_str))
+
+        # Scored IDs for Candidate Model
+        cand_scored_gids = set(cand_res.get("scored_gateway_ids") or [p["gateway_id"] for p in cand_res.get("predictions", [])])
+        for gid in cand_scored_gids:
+            candidate_valid_gw_weeks.add((gid, m_str))
 
         # 3. Development fleet for temporal window evaluation
         dev_gids = el_gids - holdout_ids
+        all_dev_gids_seen.update(dev_gids)
         f_cutoff = pd.Timestamp(m_date, tz="UTC")
+
+        # Invariant Guard: verify zero holdout IDs leak into development evaluation fleet
+        assert dev_gids.isdisjoint(holdout_ids), "CRITICAL: Holdout gateway leaked into development evaluation fleet!"
 
         broken_dev = set()
         for gid in dev_gids:
@@ -439,6 +452,8 @@ def evaluate_candidate_against_active(
 
         # 4. Grouped holdout fleet (evaluated with allow_holdout=True)
         h_gids = el_gids & holdout_ids
+        all_holdout_gids_seen.update(h_gids)
+
         broken_h = set()
         for gid in h_gids:
             if label_gateway_week(gid, m_date, f_cutoff, obs_window, spec, visits_df, allow_holdout=True) == GatewayWeekLabel.BROKEN:
@@ -483,7 +498,14 @@ def evaluate_candidate_against_active(
         cost_differential_eur=holdout_diff * 600.0,
     )
 
-    # Compile Coverage Result
+    # Section 8A: True common valid population intersection
+    common_valid_gw_weeks = active_valid_gw_weeks & candidate_valid_gw_weeks
+    pop_total = len(eligible_gw_weeks)
+    act_valid_total = len(active_valid_gw_weeks)
+    cand_valid_total = len(candidate_valid_gw_weeks)
+    common_valid_total = len(common_valid_gw_weeks)
+    excluded_due_to_input = len(eligible_gw_weeks - common_valid_gw_weeks)
+
     max_valid = max(act_valid_total, cand_valid_total)
     cov_ratio = (common_valid_total / max_valid) if max_valid > 0 else 0.0
     coverage_result = CoverageEvaluationResult(
@@ -491,7 +513,7 @@ def evaluate_candidate_against_active(
         active_valid_count=act_valid_total,
         candidate_valid_count=cand_valid_total,
         common_valid_count=common_valid_total,
-        excluded_due_to_model_input=pop_total - common_valid_total,
+        excluded_due_to_model_input=excluded_due_to_input,
         coverage_ratio=round(cov_ratio, 4),
         minimum_coverage_ratio=0.90,
         passes_coverage=(cov_ratio >= 0.90),
@@ -524,6 +546,8 @@ def evaluate_candidate_against_active(
         has_window_regression=has_reg,
         grouped_holdout=grouped_result,
         coverage=coverage_result,
+        development_gateways_count=len(all_dev_gids_seen),
+        holdout_gateways_count=len(holdout_ids),
         created_at_utc="2026-09-05T00:00:00Z",
     )
 

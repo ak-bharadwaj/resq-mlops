@@ -96,22 +96,28 @@ def evaluate_promotion_policy(
     cand_ver = str(report.get("candidate_version", "v0002"))
     eval_mode = str(report.get("evaluation_mode", promo_rule.get("evaluation_mode", "cost_backtest")))
 
-    cov = report.get("coverage", {})
-    cov_ratio = float(cov.get("coverage_ratio", 1.0))
-
-    act_agg_missed = int(report.get("aggregate_active_missed", 0))
-    cand_agg_missed = int(report.get("aggregate_candidate_missed", 0))
-    diff_agg = act_agg_missed - cand_agg_missed
-    imp_pct = float(report.get("aggregate_improvement_percent", 0.0))
-
     windows = report.get("windows", {})
     grouped = report.get("grouped_holdout", {})
+    cov = report.get("coverage", {})
+
+    # Authoritative derivation of coverage ratio from fundamental counts (Finding 1 & 2)
+    common_cnt = int(cov.get("common_valid_count", 0))
+    act_valid_cnt = int(cov.get("active_valid_count", 0))
+    cand_valid_cnt = int(cov.get("candidate_valid_count", 0))
+    max_valid = max(act_valid_cnt, cand_valid_cnt)
+    cov_ratio = (common_cnt / max_valid) if max_valid > 0 else 0.0
+
+    # Authoritative derivation of aggregate missed counts from windows (Finding 2)
+    act_agg_missed = sum(int(w.get("active_missed_broken_weeks", 0)) for w in windows.values())
+    cand_agg_missed = sum(int(w.get("candidate_missed_broken_weeks", 0)) for w in windows.values())
+    diff_agg = act_agg_missed - cand_agg_missed
+    imp_pct = (diff_agg / act_agg_missed * 100.0) if act_agg_missed > 0 else 0.0
 
     cost_differential_eur = diff_agg * fault_cost
     total_act_cost = fixed_cost + (act_agg_missed * fault_cost)
     total_cand_cost = fixed_cost + (cand_agg_missed * fault_cost)
 
-    # Base kwargs for PromotionDecision
+    # Base kwargs for PromotionDecision with authoritatively derived values
     base_kwargs = {
         "active_version": active_ver,
         "candidate_version": cand_ver,
@@ -119,10 +125,10 @@ def evaluate_promotion_policy(
         "aggregate_active_missed": act_agg_missed,
         "aggregate_candidate_missed": cand_agg_missed,
         "aggregate_differential": diff_agg,
-        "aggregate_improvement_percent": imp_pct,
+        "aggregate_improvement_percent": round(imp_pct, 2),
         "window_results": windows,
         "grouped_holdout_result": grouped,
-        "coverage_ratio": cov_ratio,
+        "coverage_ratio": round(cov_ratio, 4),
         "cost_differential_eur": cost_differential_eur,
         "fixed_visit_cost_eur": fixed_cost,
         "total_active_cost_eur": total_act_cost,
@@ -130,7 +136,7 @@ def evaluate_promotion_policy(
         "timestamp_utc": "2026-09-05T00:00:00Z",
     }
 
-    # 1. Coverage Contract Check (Section 8A)
+    # 1. Coverage Contract Check (Section 8A) - uses authoritatively derived cov_ratio
     if cov_ratio < min_coverage:
         return PromotionDecision(
             decision="REJECT",
