@@ -1,22 +1,22 @@
 ================================================================================
 RESQ-MLOPS FINAL SUBMISSION EXECUTION EVIDENCE & LIFECYCLE CERTIFICATION
 ================================================================================
-Timestamp (UTC):             2026-09-05T17:35:00+00:00
-Implementation Commit SHA:   4e186eb5f5016be3470db277146d0541fc5da941
-Parent Commit SHA:           465d39ee44d64c51af879c46b57778b343843d0f
+Timestamp (UTC):             2026-09-05T18:05:00+00:00
+Implementation Commit SHA:   6d519250cb7d341747d00e62045d3b0c1e99b5a7
+Parent Commit SHA:           4f588acc0fbd7df2a1c9a044aa13dd8b6171d72c
 Branch:                      main
 Remote Repository:           https://github.com/ak-bharadwaj/resq-mlops.git (PRIVATE)
 Operating System:            Windows 11 / win32
 Python Interpreter:          C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe (Python 3.14.5)
 Test Framework:              pytest 9.0.3, hypothesis 6.165.9, schemathesis 4.24.3
-Full Regression Test Count:  220 passed, 0 failed, 0 skipped in 412.33s (0:06:52)
+Full Regression Test Count:  222 passed, 0 failed, 0 skipped in 411.58s (0:06:51)
 
 ================================================================================
 EXECUTIVE SUMMARY: FINAL CONTRACT RESTORATION & AUDIT CLOSURE
 ================================================================================
-All submission blockers, artifact contracts, immutability guarantees, and 
-deliverables defined in ARCHITECTURE_v25_FREEZE.md have been restored, 
-empirically tested, and proven with zero unapproved deviations:
+All submission blockers, artifact contracts, immutability guarantees, provenance
+contracts, and deliverables defined in ARCHITECTURE_v25_FREEZE.md have been 
+restored, empirically tested, and proven with zero unapproved deviations:
 
 1. Area 1 (Frozen v25 Artifact Contract Restored):
    - In strict adherence to ARCHITECTURE_v25_FREEZE.md Section 6 / line 421:
@@ -38,7 +38,27 @@ empirically tested, and proven with zero unapproved deviations:
    - Verified by test_candidate_package_immutability_fails_on_overwrite:
      attempting to overwrite an existing package fails closed and leaves all files intact.
 
-3. Area 3 (Selection-Time Holdout Chronology & Pre-Requisite Enforcement):
+3. Area 3 (Scorer Clean-Tree Assertion at Packaging Time):
+   - In strict adherence to ARCHITECTURE_v25_FREEZE.md Section 6 / line 421:
+     "scorer_identity.txt records the exact committed scorer-source identity and requires
+      a clean-tree assertion at packaging time."
+   - Implemented assert_clean_working_tree in app/model/train.py:
+     verifies that git status --porcelain reports no uncommitted changes for the scorer
+     file (app/model/scorer.py or baseline_3sigma.py), raising TrainingError if dirty.
+   - Verified by test_packaging_asserts_clean_tree in tests/unit/test_candidate_features.py.
+
+4. Area 4 (Runtime Provenance Contract & run.json):
+   - In strict adherence to ARCHITECTURE_v25_FREEZE.md Section 6 / line 423 & Section 14 / line 931:
+     "run.json records run_id, model_version, feature_version, schema_version,
+      Python/runtime identity and requirements.lock version/hash."
+   - Implemented write_run_record in app/model/predict.py:
+     emits runs/prediction/run.json capturing run_id, model_version, feature_version,
+     schema_version, runtime (python_version, platform), requirements_lock_hash,
+     replay_hash, data_dir, output_file, and timestamp_utc.
+   - Both scripts/make_submission.py and scripts/predict.py authoritatively write run.json.
+   - Verified by test_run_json_provenance_contract in tests/unit/test_standing_gaps.py.
+
+5. Area 5 (Selection-Time Holdout Chronology & Pre-Requisite Enforcement):
    - Proven mathematical independence: GROUP_HOLDOUT_IDS (59 gateways) was generated
      via deterministic canonical ID hashing alone: int(sha256(f"holdout:{gid}"), 16) % 5 == 0.
    - Architectural pre-condition: extract_candidate_features and train_candidate require
@@ -48,13 +68,13 @@ empirically tested, and proven with zero unapproved deviations:
    - Strict exclusion: verified that across all 13 rolling window Mondays (Nov, Dec, Jan),
      the development fleet cohort is strictly disjoint from the 59 holdout IDs.
 
-4. Area 4 (Clean-Clone Smoke Test Cross-Platform Portability):
+6. Area 6 (Clean-Clone Smoke Test Cross-Platform Portability):
    - test_clean_environment_make_run uses platform-conditional linking:
      * Windows: cmd.exe /c mklink /J
      * POSIX (Linux/macOS): os.symlink(..., target_is_directory=True)
    - Verified that literal make run executes cleanly and validate_submission.py passes (: OK).
 
-5. Area 5 (Walkthrough Recording Deliverable & Cue-Sheet):
+7. Area 7 (Walkthrough Recording Deliverable & Cue-Sheet):
    - Eliminated placeholder strings in README.md.
    - Created docs/recording/WALKTHROUGH_SCRIPT.md with verbatim 8-minute spoken script
      and screen action cue-sheet in the Operations Manager register (0:00 to 8:00 breakdown).
@@ -72,20 +92,21 @@ hypothesis profile 'default'
 rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collecting ... collected 6 items
+collecting ... collected 7 items
 
-tests/unit/test_standing_gaps.py::test_missing_telemetry_fails_nonzero PASSED [ 16%]
-tests/unit/test_standing_gaps.py::test_clean_environment_make_run PASSED [ 33%]
-tests/unit/test_standing_gaps.py::test_holdout_gateway_not_used_for_development_selection PASSED [ 50%]
-tests/unit/test_standing_gaps.py::test_selection_time_holdout_provenance_and_isolation PASSED [ 66%]
-tests/unit/test_standing_gaps.py::test_make_run_makefile_contract PASSED [ 83%]
-tests/unit/test_standing_gaps.py::test_holdout_protection_blocks_all_group_holdout_gateways PASSED [100%]
+tests/unit/test_standing_gaps.py::test_missing_telemetry_fails_nonzero PASSED [ 14%]
+tests/unit/test_standing_gaps.py::test_clean_environment_make_run PASSED [ 28%]
+tests/unit/test_standing_gaps.py::test_holdout_gateway_not_used_for_development_selection PASSED [ 42%]
+tests/unit/test_standing_gaps.py::test_selection_time_holdout_provenance_and_isolation PASSED [ 57%]
+tests/unit/test_standing_gaps.py::test_make_run_makefile_contract PASSED [ 71%]
+tests/unit/test_standing_gaps.py::test_holdout_protection_blocks_all_group_holdout_gateways PASSED [ 85%]
+tests/unit/test_standing_gaps.py::test_run_json_provenance_contract PASSED [100%]
 
-============================= 6 passed in 40.80s ==============================
+============================== 7 passed in 41.55s ==============================
 Exit code: 0
 
 ================================================================================
-COMMAND 2: CANDIDATE FEATURES & IMMUTABILITY SUITE
+COMMAND 2: CANDIDATE FEATURES, IMMUTABILITY & CLEAN-TREE SUITE
 ================================================================================
 $ python -m pytest tests/unit/test_candidate_features.py -v
 
@@ -96,27 +117,28 @@ hypothesis profile 'default'
 rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collecting ... collected 17 items
+collecting ... collected 18 items
 
 tests/unit/test_candidate_features.py::TestGroupedHoldoutIsolation::test_group_holdout_frozen_and_loaded PASSED [  5%]
 tests/unit/test_candidate_features.py::TestGroupedHoldoutIsolation::test_holdout_gateways_blocked_in_training PASSED [ 11%]
-tests/unit/test_candidate_features.py::TestGroupedHoldoutIsolation::test_holdout_gateways_allowed_with_explicit_flag PASSED [ 17%]
-tests/unit/test_candidate_features.py::TestFeatureCutoffsAndIsolation::test_exact_monday_midnight_boundary PASSED [ 23%]
-tests/unit/test_candidate_features.py::TestFeatureCutoffsAndIsolation::test_train_predict_feature_parity PASSED [ 29%]
-tests/unit/test_candidate_features.py::TestMissingTelemetryTaxonomy::test_institutional_non_coverage_excluded_as_no_telemetry PASSED [ 35%]
-tests/unit/test_candidate_features.py::TestMissingTelemetryTaxonomy::test_recent_total_silence_yields_ratio_one PASSED [ 41%]
-tests/unit/test_candidate_features.py::TestMissingTelemetryTaxonomy::test_complete_reporting_yields_silence_ratio_zero PASSED [ 47%]
-tests/unit/test_candidate_features.py::TestWeightedMultiSignalScorer::test_scoring_weights_and_tie_breaking PASSED [ 52%]
-tests/unit/test_candidate_features.py::TestWeightedMultiSignalScorer::test_tie_breaking_canonical_id_ascending PASSED [ 58%]
-tests/unit/test_candidate_features.py::TestWeightedMultiSignalScorer::test_reason_string_length_and_format PASSED [ 64%]
-tests/unit/test_candidate_features.py::TestCandidateMaterializationAndProductionSeparation::test_candidate_v0002_materialization_and_hash_determinism PASSED [ 70%]
-tests/unit/test_candidate_features.py::TestCandidateMaterializationAndProductionSeparation::test_candidate_package_immutability_fails_on_overwrite PASSED [ 76%]
-tests/unit/test_candidate_features.py::TestCandidateMaterializationAndProductionSeparation::test_candidate_training_never_mutates_active_production_pointer PASSED [ 82%]
+tests/unit/test_candidate_features.py::TestGroupedHoldoutIsolation::test_holdout_gateways_allowed_with_explicit_flag PASSED [ 16%]
+tests/unit/test_candidate_features.py::TestFeatureCutoffsAndIsolation::test_exact_monday_midnight_boundary PASSED [ 22%]
+tests/unit/test_candidate_features.py::TestFeatureCutoffsAndIsolation::test_train_predict_feature_parity PASSED [ 27%]
+tests/unit/test_candidate_features.py::TestMissingTelemetryTaxonomy::test_institutional_non_coverage_excluded_as_no_telemetry PASSED [ 33%]
+tests/unit/test_candidate_features.py::TestMissingTelemetryTaxonomy::test_recent_total_silence_yields_ratio_one PASSED [ 38%]
+tests/unit/test_candidate_features.py::TestMissingTelemetryTaxonomy::test_complete_reporting_yields_silence_ratio_zero PASSED [ 44%]
+tests/unit/test_candidate_features.py::TestWeightedMultiSignalScorer::test_scoring_weights_and_tie_breaking PASSED [ 50%]
+tests/unit/test_candidate_features.py::TestWeightedMultiSignalScorer::test_tie_breaking_canonical_id_ascending PASSED [ 55%]
+tests/unit/test_candidate_features.py::TestWeightedMultiSignalScorer::test_reason_string_length_and_format PASSED [ 61%]
+tests/unit/test_candidate_features.py::TestCandidateMaterializationAndProductionSeparation::test_candidate_v0002_materialization_and_hash_determinism PASSED [ 66%]
+tests/unit/test_candidate_features.py::TestCandidateMaterializationAndProductionSeparation::test_candidate_package_immutability_fails_on_overwrite PASSED [ 72%]
+tests/unit/test_candidate_features.py::TestCandidateMaterializationAndProductionSeparation::test_candidate_training_never_mutates_active_production_pointer PASSED [ 77%]
+tests/unit/test_candidate_features.py::TestCandidateMaterializationAndProductionSeparation::test_packaging_asserts_clean_tree PASSED [ 83%]
 tests/unit/test_candidate_features.py::TestRealDataAndEndToEndConnectivity::test_real_challenge_data_candidate_feature_extraction PASSED [ 88%]
 tests/unit/test_candidate_features.py::TestRealDataAndEndToEndConnectivity::test_predict_week_with_v0002_candidate_override PASSED [ 94%]
 tests/unit/test_candidate_features.py::TestRealDataAndEndToEndConnectivity::test_predict_week_v0001_production_default_unchanged PASSED [100%]
 
-============================= 17 passed in 14.09s =============================
+============================= 18 passed in 14.89s =============================
 Exit code: 0
 
 ================================================================================
@@ -126,6 +148,7 @@ $ cmd /c "make run"
 
 Wrote predictions.csv - 120 rows over 8 weeks
 Submission validated successfully by validate_submission.py: PASS
+Run provenance record written to runs\prediction\run.json
 Exit code: 0
 
 ================================================================================
@@ -143,10 +166,10 @@ COMMAND 5: FULL REPOSITORY REGRESSION SUITE
 $ python -m pytest tests/ -q
 
 ........................................................................ [ 32%]
-........................................................................ [ 65%]
-........................................................................ [ 98%]
-....                                                                     [100%]
-220 passed in 412.33s (0:06:52)
+........................................................................ [ 64%]
+........................................................................ [ 97%]
+......                                                                   [100%]
+222 passed in 411.58s (0:06:51)
 Exit code: 0
 
 ================================================================================
@@ -172,6 +195,23 @@ Submission Predictions Hash:
 - predictions.csv (120 rows, 8 weeks, 15 dispatches/week):
   sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc
 
+Runtime Provenance Record (runs/prediction/run.json):
+{
+  "run_id": "run_v0001_7029fdec5b6b",
+  "model_version": "v0001",
+  "feature_version": "baseline-v1",
+  "schema_version": "telemetry-v1",
+  "runtime": {
+    "python_version": "3.14.5",
+    "platform": "win32"
+  },
+  "requirements_lock_hash": "sha256:6957f696eebb6cbe7453b17fe17d2100d653c7945baba1da938becd29d7de2bb",
+  "replay_hash": "sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc",
+  "data_dir": "data",
+  "output_file": "predictions.csv",
+  "timestamp_utc": "2026-09-05T00:00:00Z"
+}
+
 Deterministic Replay Verification:
 - Pre-promotion replay hash:  sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc
 - Post-rollback replay hash:  sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc
@@ -185,22 +225,24 @@ Requirement / Invariant                               Status  Evidence Reference
 1. Restored v25 Artifact Hash Contract                PASS    compute_artifact_hash (excludes schema.json)
 2. Canonical model.joblib in All Packages             PASS    models/v0001, models/v0002, models/v_promotable
 3. Immutable Model Package Enforcement                PASS    PackageAlreadyExistsError in train_candidate
-4. Selection-Time Holdout Chronology Proven           PASS    git log (1dda55b), pre-requisite assertions
-5. Cross-Platform Clean-Clone Smoke Test              PASS    mklink on Windows, os.symlink on POSIX/Linux
-6. Strict 5-Choice DECISIONS.md (Ops Register)        PASS    DECISIONS.md (exactly 5 choices)
-7. Detailed Engineering Log Preserved                 PASS    docs/DECISION_LOG_DETAILED.md
-8. Empirical Telemetry Blind Spot Quantified (12 IDs) PASS    LIMITATIONS.md Section 1
-9. Explicit Two-Week Additional Delta Declared        PASS    LIMITATIONS.md Section 5
-10. Holdout Protection Fail-Closed Development Guard  PASS    HoldoutAccessError on all 59 holdout IDs
-11. Clean-Environment Smoke Test (Literal make run)   PASS    test_clean_environment_make_run
-12. make run Generates 120 Rows over 8 Scored Weeks   PASS    validate_submission.py: OK
-13. Cross-Platform make Support (make.cmd / make.bat) PASS    make.cmd & make.bat root wrappers
-14. Walkthrough Recording Deliverable & Script        PASS    README.md & docs/recording/WALKTHROUGH_SCRIPT.md
-15. v0001 Baseline Production Immutability           PASS    registry/active.json -> v0001
-16. v0002 Candidate Deterministic Gate Rejection     PASS    policy.json, promotion.py, registry/history.jsonl
-17. Atomic Rollback with Replay Hash Equality        PASS    app/registry/rollback.py, test_rollback.py
-18. Monday 00:00:00 UTC Temporal Ingestion Firewall  PASS    app/data/loader.py, test_telemetry_firewall.py
-19. Strict Canonical Gateway ID Invariant            PASS    app/data/loader.py, test_id_normalization.py
-20. Backlog Economics Report (ranks 16+)             PASS    backlog_report.json, app/model/predict.py
-21. Full Regression Suite Green (220 / 220 tests)    PASS    pytest tests/ -q (220 passed in 412.33s)
+4. Scorer Clean-Tree Packaging Assertion              PASS    assert_clean_working_tree in train.py
+5. Runtime Provenance run.json Contract               PASS    runs/prediction/run.json (v25 Section 6 & 14)
+6. Selection-Time Holdout Chronology Proven           PASS    git log (1dda55b), pre-requisite assertions
+7. Cross-Platform Clean-Clone Smoke Test              PASS    mklink on Windows, os.symlink on POSIX/Linux
+8. Strict 5-Choice DECISIONS.md (Ops Register)        PASS    DECISIONS.md (exactly 5 choices)
+9. Detailed Engineering Log Preserved                 PASS    docs/DECISION_LOG_DETAILED.md
+10. Empirical Telemetry Blind Spot Quantified (12 IDs) PASS    LIMITATIONS.md Section 1
+11. Explicit Two-Week Additional Delta Declared        PASS    LIMITATIONS.md Section 5
+12. Holdout Protection Fail-Closed Development Guard  PASS    HoldoutAccessError on all 59 holdout IDs
+13. Clean-Environment Smoke Test (Literal make run)   PASS    test_clean_environment_make_run
+14. make run Generates 120 Rows over 8 Scored Weeks   PASS    validate_submission.py: OK
+15. Cross-Platform make Support (make.cmd / make.bat) PASS    make.cmd & make.bat root wrappers
+16. Walkthrough Recording Deliverable & Script        PASS    README.md & docs/recording/WALKTHROUGH_SCRIPT.md
+17. v0001 Baseline Production Immutability           PASS    registry/active.json -> v0001
+18. v0002 Candidate Deterministic Gate Rejection     PASS    policy.json, promotion.py, registry/history.jsonl
+19. Atomic Rollback with Replay Hash Equality        PASS    app/registry/rollback.py, test_rollback.py
+20. Monday 00:00:00 UTC Temporal Ingestion Firewall  PASS    app/data/loader.py, test_telemetry_firewall.py
+21. Strict Canonical Gateway ID Invariant            PASS    app/data/loader.py, test_id_normalization.py
+22. Backlog Economics Report (ranks 16+)             PASS    backlog_report.json, app/model/predict.py
+23. Full Regression Suite Green (222 / 222 tests)    PASS    pytest tests/ -q (222 passed in 411.58s)
 ================================================================================
