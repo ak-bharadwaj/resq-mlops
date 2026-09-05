@@ -22,12 +22,17 @@ import sys
 import pandas as pd
 import pytest
 
+from app.data.schema import SchemaValidationError
 from app.model.predict import (
     InsufficientEligibleGatewaysError,
     ModelArtifactError,
+    build_canonical_input_bytes,
+    build_canonical_predictions_bytes,
+    compute_v25_replay_hash,
     predict_week,
     resolve_active_model_version,
 )
+from app.model.scorer import BaseScorer, Baseline3SigmaScorer
 from app.model.train import compute_artifact_hash, train_candidate
 
 
@@ -274,3 +279,128 @@ def test_make_submission_and_official_validator(repo_root: pathlib.Path, tmp_pat
     ]
     val_res = subprocess.run(val_cmd, capture_output=True, text=True)
     assert val_res.returncode == 0, f"Official validator rejected submission: {val_res.stdout} -- {val_res.stderr}"
+
+
+def test_v0001_exact_semantic_fidelity_to_supplied_baseline(repo_root: pathlib.Path):
+    """Audit Finding 1: Verify Baseline3SigmaScorer encapsulates exact baseline_3sigma.py decision logic."""
+    import baseline_3sigma
+    assert issubclass(Baseline3SigmaScorer, BaseScorer), "Baseline3SigmaScorer must inherit from BaseScorer per Rule 9"
+
+    scorer = Baseline3SigmaScorer()
+    b_frame = baseline_3sigma.load(repo_root / "data")
+
+    # Verify identical mathematical output across all 8 scored weeks on identical telemetry input
+    for monday in baseline_3sigma.SCORED_WEEKS:
+        stats = scorer.compute_window_stats(b_frame, monday, id_col="gateway_id")
+        b_stats = baseline_3sigma.rank_week(b_frame, monday)
+
+        merged = pd.merge(stats, b_stats, on="gateway_id")
+        assert len(merged) == len(b_stats)
+        flag_diffs = (merged["flagged_hours_x"] != merged["flagged_hours_y"]).sum()
+        worst_diffs = (merged["worst_metric_x"] != merged["worst_metric_y"]).sum()
+
+        assert flag_diffs == 0, f"Week {monday} had {flag_diffs} flagged_hour discrepancies"
+        assert worst_diffs == 0, f"Week {monday} had {worst_diffs} worst_metric discrepancies"
+
+
+def test_predict_enforces_authoritative_schema_contract(repo_root: pathlib.Path, monkeypatch):
+    """Audit Finding 3: Verify predict_week fails closed when telemetry violates authoritative schema contract."""
+    from app.data.loader import load_telemetry_window as real_load_window
+    import app.model.predict as predict_module
+
+    def corrupted_load_telemetry(*args, **kwargs):
+        df = real_load_window(*args, **kwargs)
+        if not df.empty:
+            df = df.copy()
+            df.loc[df.index[0], "offline_duration_sec"] = -100.0  # Negative duration violates schema
+        return df
+
+    monkeypatch.setattr(predict_module, "load_telemetry_window", corrupted_load_telemetry)
+
+    with pytest.raises(SchemaValidationError) as exc_info:
+        predict_week(data_dir=repo_root / "data", week_start="2026-02-02")
+
+    assert "offline_duration_sec" in str(exc_info.value) or "non-negative" in str(exc_info.value)
+
+
+def test_v25_replay_hash_determinism_and_sensitivity(repo_root: pathlib.Path):
+    """Audit Finding 2: Verify replay hash conforms to frozen v25 SHA256(canonical_input || canonical_preds)."""
+    # 1. Determinism on production pipeline
+    res1 = predict_week(data_dir=repo_root / "data", week_start="2026-02-02")
+    res2 = predict_week(data_dir=repo_root / "data", week_start="2026-02-02")
+    assert res1["replay_hash"] == res2["replay_hash"]
+    assert res1["replay_hash"].startswith("sha256:")
+    assert len(res1["replay_hash"]) == 7 + 64
+
+    # 2. Sensitivity test on canonical_input_bytes
+    dummy_ts = dt.datetime(2026, 1, 15, 12, 0, 0, tzinfo=dt.timezone.utc)
+    cutoff = dt.datetime(2026, 2, 2, 0, 0, 0, tzinfo=dt.timezone.utc)
+    start = cutoff - dt.timedelta(days=28)
+    eligible = {"0639EA5602C1"}
+
+    df1 = pd.DataFrame([{
+        "canonical_id": "0639EA5602C1",
+        "ts": dummy_ts,
+        "offline_duration_sec": 100.0,
+        "disconnection_cnt": 1.0,
+        "reboot_cnt": 0.0,
+    }])
+    df2 = pd.DataFrame([{
+        "canonical_id": "0639EA5602C1",
+        "ts": dummy_ts,
+        "offline_duration_sec": 100.000001,
+        "disconnection_cnt": 1.0,
+        "reboot_cnt": 0.0,
+    }])
+
+    b1 = build_canonical_input_bytes(df1, start, cutoff, eligible)
+    b2 = build_canonical_input_bytes(df2, start, cutoff, eligible)
+    assert b1 != b2
+
+    preds = res1["predictions"]
+    pred_bytes = build_canonical_predictions_bytes(preds)
+
+    hash1 = compute_v25_replay_hash(b1, pred_bytes)
+    hash2 = compute_v25_replay_hash(b2, pred_bytes)
+    assert hash1 != hash2, "Replay hash must be sensitive to telemetry input perturbations"
+
+    # 3. Sensitivity test on canonical_predictions_bytes
+    mod_preds = [dict(p) for p in preds]
+    mod_preds[0]["score"] = mod_preds[0]["score"] + 0.000001
+    mod_pred_bytes = build_canonical_predictions_bytes(mod_preds)
+    assert pred_bytes != mod_pred_bytes
+
+    hash3 = compute_v25_replay_hash(b1, mod_pred_bytes)
+    assert hash1 != hash3, "Replay hash must be sensitive to prediction score perturbations"
+
+
+def test_v0001_packaging_cryptographic_binding(repo_root: pathlib.Path, tmp_path: pathlib.Path):
+    """Audit Finding 4: Verify train_candidate binds scorer_identity to baseline_3sigma.py SHA256 and packages constants."""
+    baseline_code_path = repo_root / "baseline_3sigma.py"
+    expected_code_sha = hashlib.sha256(baseline_code_path.read_bytes()).hexdigest()
+
+    cand_dir = tmp_path / "models" / "v0001_crypto_test"
+    result = train_candidate(
+        data_dir=repo_root / "data",
+        candidate_version="v0001_crypto_test",
+        output_dir=cand_dir,
+        registry_path=repo_root / "registry" / "active.json",
+        runs_dir=tmp_path / "runs",
+    )
+
+    # Scorer identity verification
+    scorer_id_text = (cand_dir / "scorer_identity.txt").read_text(encoding="utf-8")
+    assert f"sha256:{expected_code_sha}" in scorer_id_text
+
+    # Model config verification
+    cfg = json.loads((cand_dir / "model_config.json").read_text(encoding="utf-8"))
+    assert cfg["baseline_days"] == 28
+    assert cfg["recent_days"] == 7
+    assert cfg["sigma"] == 3.0
+    assert cfg["visits_per_week"] == 15
+
+    # Artifact hash verification
+    art_hash = compute_artifact_hash(cand_dir)
+    manifest = json.loads((cand_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["artifact_hash"] == art_hash
+    assert result["artifact_hash"] == art_hash

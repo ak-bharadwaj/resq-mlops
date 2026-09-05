@@ -4,7 +4,9 @@ Strict Invariants:
 1. Physical Module Separation: NEVER imports training, evaluation, label construction, or field_visits.
 2. Monotonic Time Authority: Zero wall-clock calls (datetime.now(), time.time()). All dates derived from input week.
 3. Immutability: Reads active model artifact, never mutates registry/active.json or model packages.
-4. Determinism: Fixed tie-breaking by canonical gateway_id, 6-decimal score serialization, replay hash.
+4. Authoritative Schema Enforcement: Invokes schema_contract.validate_or_raise(telemetry_df) before scoring.
+5. Determinism: Fixed tie-breaking by canonical gateway_id, 6-decimal score serialization.
+6. Frozen Replay Contract: SHA256(canonical_input_bytes || canonical_predictions_csv_bytes).
 """
 from __future__ import annotations
 
@@ -13,7 +15,7 @@ import datetime as dt
 import hashlib
 import json
 import pathlib
-from typing import Any
+from typing import Any, Set
 
 import numpy as np
 import pandas as pd
@@ -26,6 +28,7 @@ from app.data.loader import (
 )
 from app.data.quality import SourceCompletenessError, check_source_completeness
 from app.data.schema import SchemaValidationError, TelemetrySchemaContract
+from app.model.scorer import Baseline3SigmaScorer
 
 
 class ModelArtifactError(Exception):
@@ -71,6 +74,71 @@ def load_active_artifact_config(
     return config, schema_contract
 
 
+def build_canonical_input_bytes(
+    telemetry_df: pd.DataFrame,
+    start_utc: dt.datetime,
+    cutoff_utc: dt.datetime,
+    eligible_gateways: Set[str],
+) -> bytes:
+    """Build canonical input bytes per Section 6 / v25 replay contract.
+
+    v25 Specification:
+    Canonical input uses fixed column order, deterministic row ordering by
+    week_start/timestamp/canonical gateway_id, UTF-8, LF endings, explicit
+    null tokens ('NA') and fixed numeric serialization.
+    """
+    id_col = "canonical_id" if "canonical_id" in telemetry_df.columns else "gateway_id"
+    metrics = ["offline_duration_sec", "disconnection_cnt", "reboot_cnt"]
+
+    mask = (
+        (telemetry_df["ts"] >= start_utc)
+        & (telemetry_df["ts"] < cutoff_utc)
+        & (telemetry_df[id_col].isin(eligible_gateways))
+    )
+    subset = telemetry_df.loc[mask, [id_col, "ts", *metrics]].copy()
+
+    # Deterministic sort: timestamp ascending, then canonical ID ascending
+    subset.sort_values(by=["ts", id_col], ascending=[True, True], inplace=True)
+
+    lines = ["canonical_id,ts,offline_duration_sec,disconnection_cnt,reboot_cnt\n"]
+    for row in subset.itertuples(index=False):
+        gid = str(getattr(row, id_col))
+        ts_str = pd.to_datetime(row.ts).isoformat()
+        off_str = f"{float(row.offline_duration_sec):.6f}" if pd.notna(row.offline_duration_sec) else "NA"
+        disc_str = f"{float(row.disconnection_cnt):.6f}" if pd.notna(row.disconnection_cnt) else "NA"
+        reb_str = f"{float(row.reboot_cnt):.6f}" if pd.notna(row.reboot_cnt) else "NA"
+        lines.append(f"{gid},{ts_str},{off_str},{disc_str},{reb_str}\n")
+
+    return "".join(lines).encode("utf-8")
+
+
+def build_canonical_predictions_bytes(predictions: list[dict[str, Any]]) -> bytes:
+    """Build canonical predictions bytes per Section 6 / v25 replay contract.
+
+    v25 Specification:
+    Canonical predictions use week_start, rank, gateway_id, score, reason in fixed order,
+    UTF-8/LF, score serialized to six decimals and deterministic reason truncation.
+    """
+    sorted_preds = sorted(predictions, key=lambda p: p["rank"])
+    lines = ["week_start,rank,gateway_id,score,reason\n"]
+    for p in sorted_preds:
+        lines.append(
+            f"{p['week_start']},{p['rank']},{p['gateway_id']},{float(p['score']):.6f},{p['reason']}\n"
+        )
+    return "".join(lines).encode("utf-8")
+
+
+def compute_v25_replay_hash(
+    canonical_input_bytes: bytes,
+    canonical_predictions_bytes: bytes,
+) -> str:
+    """Compute replay hash per v25: SHA256(canonical_input_bytes || canonical_predictions_csv_bytes)."""
+    hasher = hashlib.sha256()
+    hasher.update(canonical_input_bytes)
+    hasher.update(canonical_predictions_bytes)
+    return f"sha256:{hasher.hexdigest()}"
+
+
 def predict_week(
     data_dir: pathlib.Path,
     week_start: str | dt.date,
@@ -91,7 +159,7 @@ def predict_week(
         Dictionary containing:
         - "predictions": list of 15 dicts (week_start, rank, gateway_id, score, reason)
         - "backlog_report": dict of deferred backlog economics
-        - "replay_hash": SHA256 deterministic replay hash
+        - "replay_hash": SHA256 deterministic replay hash per v25
         - "active_version": active model version
         - "week_start": ISO formatted week start string
     """
@@ -104,7 +172,6 @@ def predict_week(
     else:
         monday = week_start
 
-    # Monday 00:00:00 UTC temporal firewall cutoff
     cutoff_utc = dt.datetime(monday.year, monday.month, monday.day, 0, 0, 0, tzinfo=dt.timezone.utc)
 
     # 2. Resolve Active Model Package
@@ -121,7 +188,6 @@ def predict_week(
     visits_per_week = int(config.get("visits_per_week", 15))
 
     start_utc = cutoff_utc - dt.timedelta(days=baseline_days)
-    recent_start_utc = cutoff_utc - dt.timedelta(days=recent_days)
 
     # 3. Ingestion & Eligibility
     master_df = load_gateway_master(data_dir)
@@ -140,7 +206,11 @@ def predict_week(
         start_utc=start_utc,
     )
 
-    # 5. Pre-feature source completeness guard
+    # 5. Authoritative Schema Contract Enforcement on Raw Window
+    # Explicitly validates columns, dtypes, hourly grain, and ranges per models/<version>/schema.json
+    schema_contract.validate_or_raise(telemetry_df)
+
+    # 6. Pre-feature source completeness guard
     completeness = check_source_completeness(
         telemetry_df,
         eligible_gateways=eligible_gateways,
@@ -153,67 +223,18 @@ def predict_week(
             f"exceeds threshold. Entering BLOCK_FEATURES."
         )
 
-    # 6. Feature Construction & 3-Sigma Anomaly Scoring
-    # Filter telemetry to eligible gateways only
-    telemetry_eligible = telemetry_df[telemetry_df["canonical_id"].isin(eligible_gateways)].copy()
-
-    reporting_gateways = set(telemetry_eligible["canonical_id"].unique()) if not telemetry_eligible.empty else set()
-    zero_telemetry_gateways = eligible_gateways - reporting_gateways
-
-    scored_records: list[dict[str, Any]] = []
-
-    if not telemetry_eligible.empty:
-        # Trailing 28-day baseline stats per gateway
-        stats = telemetry_eligible.groupby("canonical_id")[metrics].agg(["mean", "std"])
-
-        # Trailing 7-day window for recent anomaly evaluation
-        recent_mask = telemetry_eligible["ts"] >= recent_start_utc
-        recent_df = telemetry_eligible[recent_mask].copy()
-
-        if not recent_df.empty:
-            flags = pd.Series(0, index=recent_df.index, dtype=int)
-            worst = pd.Series("", index=recent_df.index, dtype=object)
-
-            for metric in metrics:
-                mean_col = recent_df["canonical_id"].map(stats[(metric, "mean")])
-                std_col = recent_df["canonical_id"].map(stats[(metric, "std")]).replace(0, np.nan)
-                exceeded = (recent_df[metric] - mean_col) > (sigma * std_col)
-                exceeded = exceeded.fillna(False)
-                flags = flags + exceeded.astype(int)
-                worst = worst.where(~exceeded | (worst != ""), metric)
-
-            recent_df["flagged"] = flags
-            recent_df["worst_metric"] = worst
-
-            grouped = recent_df.groupby("canonical_id").agg(
-                flagged_hours=("flagged", "sum"),
-                worst_metric=("worst_metric", lambda s: next((v for v in s if v), "none")),
-            ).reset_index()
-
-            flagged_map = dict(zip(grouped["canonical_id"], grouped["flagged_hours"]))
-            worst_map = dict(zip(grouped["canonical_id"], grouped["worst_metric"]))
-        else:
-            flagged_map = {}
-            worst_map = {}
-
-        for gid in reporting_gateways:
-            hours = float(flagged_map.get(gid, 0.0))
-            worst_m = worst_map.get(gid, "none")
-            reason = (
-                f"{int(hours)} hour(s) beyond 3 sigma of 28-day baseline in trailing 7 days; "
-                f"primary breach on {worst_m}"
-            )
-            # Guarantee operations-manager reason length <= 300
-            if len(reason) > 300:
-                reason = reason[:297] + "..."
-            scored_records.append({
-                "gateway_id": gid,
-                "score": hours,
-                "reason": reason,
-            })
-
-    # Gateways with zero telemetry (NO_TELEMETRY) are never assigned invented scores;
-    # they are excluded from candidate ranking per Section 2B / Task 9.
+    # 7. Model Scoring via Baseline3SigmaScorer (Rule 9 / v0001)
+    scorer = Baseline3SigmaScorer(
+        baseline_days=baseline_days,
+        recent_days=recent_days,
+        sigma=sigma,
+        metrics=metrics,
+    )
+    scored_records = scorer.score_telemetry(
+        telemetry_df=telemetry_df,
+        eligible_gateways=eligible_gateways,
+        monday=monday,
+    )
 
     if len(scored_records) < visits_per_week:
         raise InsufficientEligibleGatewaysError(
@@ -221,10 +242,7 @@ def predict_week(
             f"cannot fulfill required {visits_per_week} visits"
         )
 
-    # 7. Deterministic Ranking: non-increasing score, then canonical gateway_id ascending
-    scored_records.sort(key=lambda r: (-r["score"], r["gateway_id"]))
-
-    # 8. Split into Top-15 and Deferred Backlog
+    # 8. Split into Top-15 and Deferred Backlog (ordered non-increasing by score, then canonical ID)
     top_15 = scored_records[:visits_per_week]
     backlog_records = scored_records[visits_per_week:]
 
@@ -255,25 +273,15 @@ def predict_week(
         "model_version": active_version,
     }
 
-    # 10. Replay Hash Construction
-    canonical_pred_lines = ["week_start,rank,gateway_id,score,reason\n"]
-    for row in predictions:
-        canonical_pred_lines.append(
-            f"{row['week_start']},{row['rank']},{row['gateway_id']},{row['score']:.6f},{row['reason']}\n"
-        )
-    canonical_pred_bytes = "".join(canonical_pred_lines).encode("utf-8")
-
-    input_hasher = hashlib.sha256()
-    input_hasher.update(data_dir.name.encode("utf-8"))
-    input_hasher.update(monday.isoformat().encode("utf-8"))
-    input_hasher.update(f"eligible:{len(eligible_gateways)}".encode("utf-8"))
-    input_hasher.update(f"reporting:{len(reporting_gateways)}".encode("utf-8"))
-    input_bytes = input_hasher.digest()
-
-    replay_hasher = hashlib.sha256()
-    replay_hasher.update(input_bytes)
-    replay_hasher.update(canonical_pred_bytes)
-    replay_hash = f"sha256:{replay_hasher.hexdigest()}"
+    # 10. Replay Hash Construction per Frozen v25 Contract
+    canonical_input_bytes = build_canonical_input_bytes(
+        telemetry_df=telemetry_df,
+        start_utc=start_utc,
+        cutoff_utc=cutoff_utc,
+        eligible_gateways=eligible_gateways,
+    )
+    canonical_pred_bytes = build_canonical_predictions_bytes(predictions)
+    replay_hash = compute_v25_replay_hash(canonical_input_bytes, canonical_pred_bytes)
 
     return {
         "predictions": predictions,

@@ -1,0 +1,18 @@
+{
+  "feature_version": "baseline-v1",
+  "features": {
+    "offline_duration_sec": {
+      "dtype": "float64",
+      "min": 0.0,
+      "max": 3600.0
+    },
+    "disconnection_cnt": {
+      "dtype": "float64",
+      "min": 0.0
+    },
+    "reboot_cnt": {
+      "dtype": "float64",
+      "min": 0.0
+    }
+  }
+}

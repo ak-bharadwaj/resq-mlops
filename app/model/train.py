@@ -34,7 +34,7 @@ def compute_artifact_hash(model_dir: pathlib.Path) -> str:
     """Compute SHA256 covering immutable behavior-defining artifact files."""
     hasher = hashlib.sha256()
     # Canonical order of behavior-defining artifact files per Section 6 / v25
-    hash_files = ["model_config.json", "feature_schema.json", "scorer_identity.txt"]
+    hash_files = ["model_config.json", "feature_schema.json", "schema.json", "scorer_identity.txt"]
     for fname in hash_files:
         fpath = model_dir / fname
         if fpath.exists():
@@ -137,9 +137,15 @@ def train_candidate(
         json.dumps(schema_dict, indent=2), encoding="utf-8"
     )
 
-    # 7. Write scorer_identity.txt
+    # 7. Write scorer_identity.txt with cryptographic binding
+    baseline_path = pathlib.Path("baseline_3sigma.py")
+    if baseline_path.exists():
+        baseline_sha = hashlib.sha256(baseline_path.read_bytes()).hexdigest()
+        scorer_identity_content = f"baseline_3sigma.py:sha256:{baseline_sha}\n"
+    else:
+        scorer_identity_content = "baseline_3sigma.py:frozen_reference\n"
     (target_dir / "scorer_identity.txt").write_text(
-        "baseline_3sigma.py:frozen_reference\n", encoding="utf-8"
+        scorer_identity_content, encoding="utf-8"
     )
 
     # 8. Compute artifact_hash covering behavior-defining files
