@@ -109,8 +109,9 @@ def main() -> None:
     except RollbackReplayMismatchError as exc:
         print("Target validation: PASS")
         print("Pre-rollback replay hash: CAPTURED")
-        print("Atomic switch: PASS")
+        print("Atomic switch: FAILED (COMPENSATING ROLLBACK EXECUTED)")
         print("Replay equality: FAIL")
+        print(f"Active model: {curr_active} (restored)")
         print(f"ERROR: Rollback replay mismatch: {exc}", file=sys.stderr)
         sys.exit(1)
     except RollbackError as exc:

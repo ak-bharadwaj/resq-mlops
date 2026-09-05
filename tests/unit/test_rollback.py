@@ -5,6 +5,10 @@ Frozen Architecture References:
 - Mandatory P0 Tests:
   - rollback_restores_previous_prediction
   - invalid_rollback_target_leaves_active_unchanged
+- Safety Invariant Tests:
+  - post_switch_replay_mismatch_executes_compensating_rollback_restoring_active
+  - target_validation_verifies_actual_artifact_hash
+  - default_operational_command_enforces_expected_replay_equality
 - P1 Tests:
   - rollback_validation_failure_preserves_active
   - rollback_retains_candidate
@@ -74,7 +78,7 @@ def test_rollback_restores_previous_prediction(tmp_path):
     v_prom_hash = v_prom_pred["replay_hash"]
     assert v_prom_hash != v1_hash_before, "Candidate model must produce distinct replay hash from baseline"
 
-    # 5. Execute rollback to v0001 with expected replay hash check
+    # 5. Execute rollback to v0001 (even without passing expected_replay_hash, engine derives and proves it)
     res = execute_rollback(
         target_version="v0001",
         registry_path=registry_path,
@@ -90,6 +94,7 @@ def test_rollback_restores_previous_prediction(tmp_path):
     assert res.rollback_target == "v0001"
     assert res.pre_rollback_replay_hash == v_prom_hash
     assert res.post_rollback_replay_hash == v1_hash_before
+    assert res.expected_target_replay_hash == v1_hash_before
     assert res.replay_equality is True
     assert res.target_validation_passed is True
     assert res.active_restored == "v0001"
@@ -149,6 +154,126 @@ def test_invalid_rollback_target_leaves_active_unchanged(tmp_path):
 
     # Invariant: no ROLLED_BACK event in history
     assert history_path.read_text(encoding="utf-8") == history_initial
+
+
+def test_post_switch_replay_mismatch_executes_compensating_rollback_restoring_active(tmp_path, monkeypatch):
+    """P0 Safety Contract: Replay failure after atomic switch restores active.json to pre-switch state."""
+    data_dir = pathlib.Path("data")
+    if not data_dir.exists():
+        pytest.skip("Data directory not available")
+
+    registry_path = tmp_path / "active.json"
+    history_path = tmp_path / "history.jsonl"
+
+    initial_payload = {
+        "production_version": "v_promotable",
+        "previous_version": "v0001",
+        "changed_at": "2026-09-05T00:00:00Z",
+        "reason": "promoted",
+    }
+    registry_path.write_text(json.dumps(initial_payload, indent=2), encoding="utf-8")
+    before_bytes = registry_path.read_bytes()
+
+    history_initial = json.dumps({"event": "PROMOTED", "version": "v_promotable"}) + "\n"
+    history_path.write_text(history_initial, encoding="utf-8")
+
+    # Monkeypatch predict_week to simulate a post-switch failure or replay hash corruption
+    real_predict_week = predict_week
+    call_count = 0
+
+    def mock_predict_week(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        res = real_predict_week(*args, **kwargs)
+        # On post-switch prediction (call 3, after pre-validation smoke and active capture), forge mismatch
+        if call_count >= 3:
+            res = dict(res)
+            res["replay_hash"] = "sha256:forged_mismatched_hash_99999999999999999999999999999999"
+        return res
+
+    monkeypatch.setattr("app.registry.rollback.predict_week", mock_predict_week)
+
+    with pytest.raises(RollbackReplayMismatchError, match="Compensating transaction executed"):
+        execute_rollback(
+            target_version="v0001",
+            registry_path=registry_path,
+            history_path=history_path,
+            data_dir=data_dir,
+        )
+
+    # Invariant: Compensating rollback safely restored active.json to v_promotable
+    assert registry_path.read_bytes() == before_bytes
+    current_data = json.loads(registry_path.read_text(encoding="utf-8"))
+    assert current_data["production_version"] == "v_promotable"
+    assert current_data["previous_version"] == "v0001"
+
+    # Invariant: No corrupt ROLLED_BACK entry in history
+    assert history_path.read_text(encoding="utf-8") == history_initial
+
+
+def test_target_validation_verifies_actual_artifact_hash(tmp_path):
+    """P0 Safety Contract: validate_rollback_target computes actual SHA-256 and rejects tampered artifacts."""
+    models_dir = tmp_path / "models"
+    models_dir.mkdir(parents=True)
+    tampered_dir = models_dir / "v_tampered"
+    tampered_dir.mkdir()
+
+    # Copy standard valid files from v0001
+    for fname in ["schema.json", "feature_schema.json", "model_config.json", "scorer_identity.txt"]:
+        (tampered_dir / fname).write_bytes((pathlib.Path("models/v0001") / fname).read_bytes())
+
+    # Set model_version to v_tampered in config
+    cfg = json.loads((tampered_dir / "model_config.json").read_text(encoding="utf-8"))
+    cfg["model_version"] = "v_tampered"
+    (tampered_dir / "model_config.json").write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+
+    # Inject forged artifact_hash in manifest
+    manifest = {
+        "model_version": "v_tampered",
+        "model_type": "baseline_3sigma_anomaly",
+        "feature_version": "baseline-v1",
+        "schema_version": "telemetry-v1",
+        "artifact_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",  # fake hash
+        "evaluation_mode": "cost_backtest",
+        "evidence_quality": "baseline",
+        "evaluation_scope": "precision_biased_sample",
+        "training_period": ["2025-08-01", "2026-01-31"],
+        "feature_selection_frozen_at": "2026-09-05T00:00:00Z",
+        "software_lock_version": "requirements.lock",
+    }
+    (tampered_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    with pytest.raises(RollbackTargetValidationError, match="Artifact hash mismatch"):
+        validate_rollback_target("v_tampered", models_dir=models_dir)
+
+
+def test_default_operational_command_enforces_expected_replay_equality(tmp_path):
+    """P0 Contract: Default execution without --expected-hash derives and proves expected equality."""
+    data_dir = pathlib.Path("data")
+    if not data_dir.exists():
+        pytest.skip("Data directory not available")
+
+    registry_path = tmp_path / "active.json"
+    history_path = tmp_path / "history.jsonl"
+    registry_path.write_text(
+        json.dumps({"production_version": "v_promotable", "previous_version": "v0001"}),
+        encoding="utf-8",
+    )
+
+    # Execute without passing expected_replay_hash
+    res = execute_rollback(
+        target_version="v0001",
+        registry_path=registry_path,
+        history_path=history_path,
+        data_dir=data_dir,
+        expected_replay_hash=None,  # default operational path
+    )
+
+    # Engine must have obtained target_expected_hash and proven post_rollback_replay_hash == expected
+    assert res.replay_equality is True
+    assert res.expected_target_replay_hash.startswith("sha256:")
+    assert res.post_rollback_replay_hash == res.expected_target_replay_hash
+    assert res.active_restored == "v0001"
 
 
 def test_rollback_corrupted_target_rejected(tmp_path):
