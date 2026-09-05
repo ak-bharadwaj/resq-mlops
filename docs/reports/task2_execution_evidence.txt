@@ -1,7 +1,8 @@
 ================================================================================
                     TASK 2 EXECUTION EVIDENCE ARTIFACT                         
 ================================================================================
-Execution Date/Time (UTC) : 2026-09-05T08:43:05+00:00
+Execution Date/Time (UTC) : 2026-09-05T08:45:30+00:00
+Git Commit SHA            : 92805aa4c8b0f90df6be40e9fe679ea0bd89f773
 Git Branch                : main
 Python Version            : 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
 Platform / OS             : Windows 11 (AMD64)
@@ -13,12 +14,13 @@ EXIT CODE: 0
 --------------------------------------------------------------------------------
 [STDOUT]
 ============================= test session starts =============================
-platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
 rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
-testpaths: tests
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collected 35 items
+collecting ... collected 35 items
 
 tests/unit/test_id_normalization.py::test_canonicalize_bare_uppercase PASSED [  2%]
 tests/unit/test_id_normalization.py::test_canonicalize_bare_lowercase PASSED [  5%]
@@ -56,7 +58,7 @@ tests/unit/test_id_normalization.py::test_anti_fake_semantic_differences_do_crea
 tests/unit/test_id_normalization.py::test_real_data_gateway_master_and_field_visits_canonicalization PASSED [ 97%]
 tests/unit/test_id_normalization.py::test_e2e_cli_connectivity_with_canonical_id PASSED [100%]
 
-============================= 35 passed in 6.40s ==============================
+============================= 35 passed in 3.11s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 2: python -m pytest tests/ -v (Full regression suite)
@@ -64,15 +66,16 @@ EXIT CODE: 0
 --------------------------------------------------------------------------------
 [STDOUT]
 ============================= test session starts =============================
-platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
 rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
-testpaths: tests
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collected 52 items
+collecting ... collected 52 items
 
-tests/unit/test_architecture.py::test_module_isolation_ast PASSED     [  1%]
-tests/unit/test_architecture.py::test_zero_wall_clock_in_production_code PASSED [  3%]
+tests/unit/test_architecture.py::test_zero_wall_clock_in_production_code PASSED [  1%]
+tests/unit/test_architecture.py::test_prediction_never_imports_evaluation_or_labels PASSED [  3%]
 tests/unit/test_cli_data_path.py::test_cli_data_propagation_to_alternate_directory PASSED [  5%]
 tests/unit/test_cli_data_path.py::test_cli_data_rejects_nonexistent_directory PASSED [  7%]
 tests/unit/test_duplicates.py::test_exact_duplicates_deduplicated_deterministically PASSED [  9%]
@@ -124,12 +127,22 @@ tests/unit/test_schema_and_reasons.py::test_schema_validation_missing_columns PA
 tests/unit/test_schema_and_reasons.py::test_source_completeness_guard_trips_on_systemic_absence PASSED [ 98%]
 tests/unit/test_utc_cutoff.py::test_production_load_telemetry_window_utc_boundary PASSED [100%]
 
-============================= 52 passed in 6.54s ==============================
+============================= 52 passed in 6.69s ==============================
+
+--------------------------------------------------------------------------------
+COMMAND 3: python scripts/predict.py --data ./data (E2E Connectivity CLI)
+EXIT CODE: 0
+--------------------------------------------------------------------------------
+[STDOUT]
+Active model: v0001
+Data source: C:\Users\dorni\OneDrive\Desktop\lpdg\data
+Week: 2026-02-02 | Eligible gateways: 290 of 332
 
 ================================================================================
-                    TEST SUITE EXECUTION SUMMARY                                
+                    TEST SUITE & CONNECTIVITY EXECUTION SUMMARY                 
 ================================================================================
 Task 2 Tests : 35 passed, 0 failed, 0 skipped
 Full Suite   : 52 passed, 0 failed, 0 skipped
-Verdict      : PASS (Task 2 Execution Evidence Verified)
+E2E CLI      : PASS (python scripts/predict.py --data ./data executed with exit code 0)
+Verdict      : PASS (Task 2 Execution Evidence Verified against Git Commit 92805aa4c8b0f90df6be40e9fe679ea0bd89f773)
 ================================================================================
