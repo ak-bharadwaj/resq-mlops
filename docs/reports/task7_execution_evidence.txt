@@ -1,0 +1,198 @@
+================================================================================
+                    TASK 7 EXECUTION EVIDENCE ARTIFACT                         
+================================================================================
+Execution Date/Time (UTC) : 2026-09-05T09:30:00+00:00
+Git Implementation Commit : 7aeac0a731326f68456487454a75f3a0691e324d
+Git Branch                : main
+
+Python Version            : 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
+Platform / OS             : Windows 11 (AMD64)
+================================================================================
+
+--------------------------------------------------------------------------------
+COMMAND 1: python -m pytest tests/unit/test_duplicates.py -v
+EXIT CODE: 0
+--------------------------------------------------------------------------------
+[STDOUT]
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 20 items
+
+tests/unit/test_duplicates.py::test_duplicate_policy_empty_dataframe PASSED [  5%]
+tests/unit/test_duplicates.py::test_duplicate_policy_no_duplicates_emits_no_logs PASSED [ 10%]
+tests/unit/test_duplicates.py::test_master_exact_duplicates_collapse_and_log PASSED [ 15%]
+tests/unit/test_duplicates.py::test_master_equivalent_raw_ids_collapse_and_log PASSED [ 20%]
+tests/unit/test_duplicates.py::test_master_conflicting_attributes_raise_conflicting_record_error PASSED [ 25%]
+tests/unit/test_duplicates.py::test_master_conflicting_meters_blocks_ingestion PASSED [ 30%]
+tests/unit/test_field_visits.py::test_field_visits_exact_duplicates_collapse_and_log PASSED [ 35%]
+tests/unit/test_field_visits.py::test_field_visits_equivalent_duplicates_collapse_and_log PASSED [ 40%]
+tests/unit/test_field_visits.py::test_field_visits_conflicting_visit_id_raises_conflicting_record_error PASSED [ 45%]
+tests/unit/test_field_visits.py::test_field_visits_conflicting_gateway_for_same_visit_id_blocks PASSED [ 50%]
+tests/unit/test_duplicates.py::test_telemetry_exact_duplicates_collapse_and_log PASSED [ 55%]
+tests/unit/test_duplicates.py::test_telemetry_equivalent_raw_formatting_collapses_and_logs PASSED [ 60%]
+tests/unit/test_duplicates.py::test_telemetry_conflicting_measurements_raise_conflicting_record_error PASSED [ 65%]
+tests/unit/test_duplicates.py::test_telemetry_conflicting_multiple_timestamps_reports_sample PASSED [ 70%]
+tests/unit/test_duplicates.py::test_anti_silent_selection_never_picks_arbitrary_winner_or_averages PASSED [ 75%]
+tests/unit/test_duplicates.py::test_real_workspace_datasets_satisfy_duplicate_policy PASSED [ 80%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_equivalent_duplicates_resolve PASSED [ 85%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_master_blocks_pipeline PASSED [ 90%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_visits_blocks_pipeline PASSED [ 95%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_telemetry_blocks_pipeline PASSED [100%]
+
+============================= 20 passed in 3.29s ==============================
+
+--------------------------------------------------------------------------------
+COMMAND 2: python -m pytest tests/ -v (Full regression suite)
+EXIT CODE: 0
+--------------------------------------------------------------------------------
+[STDOUT]
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 115 items
+
+tests/integration/test_parallel_wave_integration.py::test_parallel_wave_e2e_connected_pipeline PASSED [  0%]
+tests/integration/test_parallel_wave_integration.py::test_parallel_wave_synthetic_e2e_pipeline PASSED [  1%]
+tests/unit/test_architecture.py::test_zero_wall_clock_in_production_code PASSED [  2%]
+tests/unit/test_architecture.py::test_prediction_never_imports_evaluation_or_labels PASSED [  3%]
+tests/unit/test_cli_data_path.py::test_cli_data_propagation_to_alternate_directory PASSED [  4%]
+tests/unit/test_cli_data_path.py::test_cli_data_rejects_nonexistent_directory PASSED [  5%]
+tests/unit/test_duplicates.py::test_duplicate_policy_empty_dataframe PASSED [  6%]
+tests/unit/test_duplicates.py::test_duplicate_policy_no_duplicates_emits_no_logs PASSED [  6%]
+tests/unit/test_duplicates.py::test_master_exact_duplicates_collapse_and_log PASSED [  7%]
+tests/unit/test_duplicates.py::test_master_equivalent_raw_ids_collapse_and_log PASSED [  8%]
+tests/unit/test_duplicates.py::test_master_conflicting_attributes_raise_conflicting_record_error PASSED [  9%]
+tests/unit/test_duplicates.py::test_master_conflicting_meters_blocks_ingestion PASSED [ 10%]
+tests/unit/test_duplicates.py::test_field_visits_exact_duplicates_collapse_and_log PASSED [ 11%]
+tests/unit/test_duplicates.py::test_field_visits_equivalent_duplicates_collapse_and_log PASSED [ 12%]
+tests/unit/test_duplicates.py::test_field_visits_conflicting_visit_id_raises_conflicting_record_error PASSED [ 13%]
+tests/unit/test_duplicates.py::test_field_visits_conflicting_gateway_for_same_visit_id_blocks PASSED [ 13%]
+tests/unit/test_duplicates.py::test_telemetry_exact_duplicates_collapse_and_log PASSED [ 14%]
+tests/unit/test_duplicates.py::test_telemetry_equivalent_raw_formatting_collapses_and_logs PASSED [ 15%]
+tests/unit/test_duplicates.py::test_telemetry_conflicting_measurements_raise_conflicting_record_error PASSED [ 16%]
+tests/unit/test_duplicates.py::test_telemetry_conflicting_multiple_timestamps_reports_sample PASSED [ 17%]
+tests/unit/test_duplicates.py::test_anti_silent_selection_never_picks_arbitrary_winner_or_averages PASSED [ 18%]
+tests/unit/test_duplicates.py::test_real_workspace_datasets_satisfy_duplicate_policy PASSED [ 19%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_equivalent_duplicates_resolve PASSED [ 20%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_master_blocks_pipeline PASSED [ 20%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_visits_blocks_pipeline PASSED [ 21%]
+tests/unit/test_duplicates.py::test_connected_pipeline_injected_conflict_in_telemetry_blocks_pipeline PASSED [ 22%]
+tests/unit/test_eligibility.py::test_eligibility_boundary_cases PASSED   [ 23%]
+tests/unit/test_eligibility.py::test_eligibility_real_data_2026_02_02 PASSED [ 24%]
+tests/unit/test_eligibility.py::test_eligibility_anti_fake_telemetry_isolation PASSED [ 25%]
+tests/unit/test_eligibility.py::test_eligibility_preserves_canonical_id_and_master_attributes PASSED [ 26%]
+tests/unit/test_eligibility.py::test_eligibility_accepts_string_and_datetime_monday_inputs PASSED [ 26%]
+tests/unit/test_field_visits.py::test_verify_field_visits_encoding_utf8 PASSED [ 27%]
+tests/unit/test_field_visits.py::test_verify_field_visits_encoding_cp1252 PASSED [ 28%]
+tests/unit/test_field_visits.py::test_verify_field_visits_encoding_unsupported_bytes_raises_error PASSED [ 29%]
+tests/unit/test_field_visits.py::test_verify_field_visits_encoding_missing_file_raises_filenotfound PASSED [ 30%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_valid PASSED [ 31%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_missing_columns PASSED [ 32%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_null_mandatory_fields PASSED [ 33%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_invalid_date_ordering PASSED [ 33%]
+tests/unit/test_field_visits.py::test_field_visits_schema_contract_negative_technician_hours PASSED [ 34%]
+tests/unit/test_field_visits.py::test_load_field_visits_real_data PASSED [ 35%]
+tests/unit/test_field_visits.py::test_load_field_visits_string_dtypes_preserved PASSED [ 36%]
+tests/unit/test_field_visits.py::test_load_field_visits_canonicalize_gateway_id_integration PASSED [ 37%]
+tests/unit/test_field_visits.py::test_load_field_visits_equivalent_duplicate_collapse PASSED [ 38%]
+tests/unit/test_field_visits.py::test_load_field_visits_conflicting_visit_id_blocks PASSED [ 39%]
+tests/unit/test_field_visits.py::test_load_field_visits_invalid_date_order_blocks PASSED [ 40%]
+tests/unit/test_field_visits.py::test_load_field_visits_negative_technician_hours_blocks PASSED [ 40%]
+tests/unit/test_field_visits.py::test_load_field_visits_missing_file_raises_filenotfound PASSED [ 41%]
+tests/unit/test_anti_fake_field_visits_duplicate_safety PASSED [ 42%]
+tests/unit/test_anti_fake_field_visits_schema_validation_fails_closed PASSED [ 43%]
+tests/unit/test_gateway_master.py::test_gateway_master_real_data PASSED  [ 44%]
+tests/unit/test_gateway_master.py::test_gateway_master_cp1252_german_characters PASSED [ 45%]
+tests/unit/test_gateway_master.py::test_gateway_master_schema_contract_validation PASSED [ 46%]
+tests/unit/test_gateway_master.py::test_gateway_master_loader_invalid_date_order_blocks PASSED [ 46%]
+tests/unit/test_gateway_master.py::test_gateway_master_loader_negative_meters_blocks PASSED [ 47%]
+tests/unit/test_gateway_master.py::test_gateway_master_equivalent_representation_collapsing PASSED [ 48%]
+tests/unit/test_gateway_master.py::test_gateway_master_conflicting_attributes_blocking PASSED [ 49%]
+tests/unit/test_gateway_master.py::test_gateway_master_leading_zero_preservation PASSED [ 50%]
+tests/unit/test_anti_fake_gateway_master_validation_and_canonicalization PASSED [ 51%]
+tests/unit/test_id_normalization.py::test_canonicalize_bare_uppercase PASSED [ 52%]
+tests/unit/test_id_normalization.py::test_canonicalize_bare_lowercase PASSED [ 53%]
+tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_uppercase PASSED [ 53%]
+tests/unit/test_id_normalization.py::test_canonicalize_colon_separated_lowercase PASSED [ 54%]
+tests/unit/test_id_normalization.py::test_canonicalize_leading_trailing_whitespace PASSED [ 55%]
+tests/unit/test_id_normalization.py::test_canonicalize_mixed_case PASSED [ 56%]
+tests/unit/test_id_normalization.py::test_multiple_accepted_representations_produce_same_canonical_id PASSED [ 57%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_null_and_nan PASSED [ 58%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_empty_string PASSED [ 59%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_whitespace_only PASSED [ 60%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_hex_characters PASSED [ 60%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_incorrect_length PASSED [ 61%]
+tests/unit/test_id_normalization.py::test_canonicalize_rejects_non_scalar_types PASSED [ 62%]
+tests/unit/test_id_normalization.py::test_single_normalization_path_ast_enforcement PASSED [ 63%]
+tests/unit/test_id_normalization.py::test_gateway_master_loader_canonicalization PASSED [ 64%]
+tests/unit/test_id_normalization.py::test_field_visits_loader_canonicalization PASSED [ 65%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_canonicalization PASSED [ 66%]
+tests/unit/test_id_normalization.py::test_downstream_join_on_canonical_representation PASSED [ 66%]
+tests/unit/test_id_normalization.py::test_collision_safety_master_equivalent_representations PASSED [ 67%]
+tests/unit/test_id_normalization.py::test_collision_safety_master_distinct_records_block PASSED [ 68%]
+tests/unit/test_id_normalization.py::test_collision_safety_telemetry_equivalent_representations PASSED [ 69%]
+tests/unit/test_id_normalization.py::test_collision_safety_telemetry_distinct_records_block PASSED [ 70%]
+tests/unit/test_id_normalization.py::test_collision_safety_field_visits_conflicting_visit_id_blocks PASSED [ 71%]
+tests/unit/test_id_normalization.py::test_loader_numeric_gateway_id_leading_zeros_preserved PASSED [ 72%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_column_projection_with_canonical_id PASSED [ 73%]
+tests/unit/test_id_normalization.py::test_telemetry_duplicate_resolution_with_raw_ts_utc_differences PASSED [ 73%]
+tests/unit/test_id_normalization.py::test_resolve_telemetry_duplicates_infers_canonical_id PASSED [ 74%]
+tests/unit/test_id_normalization.py::test_telemetry_loader_real_data_canonicalization PASSED [ 75%]
+tests/unit/test_id_normalization.py::test_canonicalize_leading_zero_id PASSED [ 76%]
+tests/unit/test_id_normalization.py::test_collision_safety_field_visits_equivalent_representations PASSED [ 77%]
+tests/unit/test_id_normalization.py::test_anti_fake_loader_fails_without_canonicalization PASSED [ 78%]
+tests/unit/test_id_normalization.py::test_anti_fake_raw_formatting_differences_do_not_create_false_conflict PASSED [ 79%]
+tests/unit/test_id_normalization.py::test_anti_fake_semantic_differences_do_create_conflict PASSED [ 80%]
+tests/unit/test_id_normalization.py::test_real_data_gateway_master_and_field_visits_canonicalization PASSED [ 80%]
+tests/unit/test_id_normalization.py::test_e2e_cli_connectivity_with_canonical_id PASSED [ 81%]
+tests/unit/test_loaders_and_encoding.py::test_gateway_master_cp1252_synthetic_german_characters PASSED [ 82%]
+tests/unit/test_loaders_and_encoding.py::test_gateway_master_real_data PASSED [ 83%]
+tests/unit/test_loaders_and_encoding.py::test_field_visits_real_data PASSED [ 84%]
+tests/unit/test_offline_contract.py::test_runtime_offline_contract PASSED [ 85%]
+tests/unit/test_schema_and_reasons.py::test_missing_data_reasons_distinct PASSED [ 86%]
+tests/unit/test_schema_and_reasons.py::test_zero_telemetry_vs_recently_silent PASSED [ 86%]
+tests/unit/test_schema_and_reasons.py::test_schema_validation_success PASSED [ 87%]
+tests/unit/test_schema_and_reasons.py::test_schema_validation_missing_columns PASSED [ 88%]
+tests/unit/test_schema_and_reasons.py::test_source_completeness_guard_trips_on_systemic_absence PASSED [ 89%]
+tests/unit/test_telemetry_firewall.py::test_exact_boundary_cutoff_exclusion PASSED [ 90%]
+tests/unit/test_telemetry_firewall.py::test_start_window_bound PASSED    [ 91%]
+tests/unit/test_telemetry_firewall.py::test_real_parquet_partition_ingestion PASSED [ 92%]
+tests/unit/test_telemetry_firewall.py::test_equivalent_telemetry_deduplication PASSED [ 93%]
+tests/unit/test_telemetry_firewall.py::test_conflicting_measurement_blocking PASSED [ 93%]
+tests/unit/test_telemetry_firewall.py::test_source_completeness_guard_tripping PASSED [ 94%]
+tests/unit/test_telemetry_firewall.py::test_naive_datetime_rejection PASSED [ 95%]
+tests/unit/test_telemetry_firewall.py::test_non_utc_timezone_datetime_rejection PASSED [ 96%]
+tests/unit/test_telemetry_firewall.py::test_load_telemetry_window_fails_closed_on_unexpected_path PASSED [ 97%]
+tests/unit/test_telemetry_firewall.py::test_load_telemetry_window_enforces_schema_contract PASSED [ 98%]
+tests/unit/test_telemetry_firewall.py::test_telemetry_schema_contract_validation PASSED [ 99%]
+tests/unit/test_utc_cutoff.py::test_production_load_telemetry_window_utc_boundary PASSED [100%]
+
+============================ 115 passed in 24.31s =============================
+
+--------------------------------------------------------------------------------
+COMMAND 3: python scripts/predict.py --data ./data
+EXIT CODE: 0
+--------------------------------------------------------------------------------
+[STDOUT]
+Active model: v0001
+Data source: C:\Users\dorni\OneDrive\Desktop\lpdg\data
+Week: 2026-02-02 | Eligible gateways: 290 of 332
+
+--------------------------------------------------------------------------------
+COMMAND 4: python scripts/make_submission.py --data ./data
+EXIT CODE: 0
+--------------------------------------------------------------------------------
+[STDOUT]
+[Phase 1 Foundation] Loaded 332 master gateways from data
+[Phase 1 Foundation] Data contracts verified across all 8 challenge weeks.
+[Task 1 Notice] Model scoring logic (v0001/v0002) is unproven/not yet implemented in Task 1.
+================================================================================
