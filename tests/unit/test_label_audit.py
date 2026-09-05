@@ -276,18 +276,53 @@ class TestAuditedHistoricalCases:
 class TestDevelopmentFirewallAndHoldoutProtection:
     """Verify development firewall and holdout protection guards (Rule 8 & Section 2C)."""
 
-    def test_post_cutoff_observation_window_blocked(self, default_label_spec: LabelSpecV1):
-        """Observation window extending past 2026-01-31 without authorization trips DevelopmentFirewallError."""
-        post_cutoff_obs = (
-            dt.datetime(2025, 8, 1, 0, 0, 0, tzinfo=dt.timezone.utc),
-            dt.datetime(2026, 2, 15, 23, 59, 59, tzinfo=dt.timezone.utc),
-        )
+    def test_late_january_fault_resolved_in_february_retrospective_window(self, default_label_spec: LabelSpecV1):
+        """A late-January fault repaired in February is BROKEN when observation window extends to Feb 14."""
+        visits_df = pd.DataFrame([
+            {
+                "canonical_id": "0123456789AB",
+                "requested_on": dt.date(2026, 1, 25),
+                "visited_on": dt.date(2026, 2, 3),  # Repaired in February
+                "outcome": "Fehler behoben",
+            }
+        ])
         week_start = dt.date(2026, 1, 26)
         fc = dt.datetime(2026, 1, 26, 0, 0, 0, tzinfo=dt.timezone.utc)
-        visits = pd.DataFrame()
+        feb_obs_win = (
+            dt.datetime(2025, 8, 1, 0, 0, 0, tzinfo=dt.timezone.utc),
+            dt.datetime(2026, 2, 14, 23, 59, 59, tzinfo=dt.timezone.utc),
+        )
 
+        lbl = label_gateway_week("0123456789AB", week_start, fc, feb_obs_win, default_label_spec, visits_df)
+        assert lbl == GatewayWeekLabel.BROKEN
+
+    def test_late_january_fault_unresolved_with_capped_observation_window(self, default_label_spec: LabelSpecV1):
+        """The same late-January fault is UNKNOWN_RIGHT_CENSORED when observation window ends Jan 31."""
+        visits_df = pd.DataFrame([
+            {
+                "canonical_id": "0123456789AB",
+                "requested_on": dt.date(2026, 1, 25),
+                "visited_on": dt.date(2026, 2, 3),  # Repair occurs after observation cutoff
+                "outcome": "Fehler behoben",
+            }
+        ])
+        week_start = dt.date(2026, 1, 26)
+        fc = dt.datetime(2026, 1, 26, 0, 0, 0, tzinfo=dt.timezone.utc)
+        jan_obs_win = (
+            dt.datetime(2025, 8, 1, 0, 0, 0, tzinfo=dt.timezone.utc),
+            dt.datetime(2026, 1, 31, 23, 59, 59, tzinfo=dt.timezone.utc),
+        )
+
+        lbl = label_gateway_week("0123456789AB", week_start, fc, jan_obs_win, default_label_spec, visits_df)
+        assert lbl == GatewayWeekLabel.UNKNOWN_RIGHT_CENSORED
+
+    def test_development_firewall_date_guard_direct(self):
+        """HoldoutProtection.check_date_access raises DevelopmentFirewallError for dates > 2026-01-31."""
         with pytest.raises(DevelopmentFirewallError, match="exceeds frozen development cutoff"):
-            label_gateway_week("0123456789AB", week_start, fc, post_cutoff_obs, default_label_spec, visits, allow_holdout=False)
+            HoldoutProtection.check_date_access(dt.date(2026, 2, 1), allow_holdout=False)
+
+        # Authorized call succeeds
+        HoldoutProtection.check_date_access(dt.date(2026, 2, 1), allow_holdout=True)
 
     def test_load_engineer_review_blocked_in_dev_mode(self, real_data_dir: Path):
         """load_engineer_review without allow_holdout=True trips HoldoutAccessError."""

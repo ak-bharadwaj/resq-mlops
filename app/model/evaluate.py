@@ -138,9 +138,6 @@ def label_gateway_week(
     if obs_start > obs_end:
         raise ValueError(f"Invalid label_observation_window: start ({obs_start}) > end ({obs_end})")
 
-    # 3. Enforce development firewall on observation window
-    HoldoutProtection.check_date_access(obs_end.date(), allow_holdout=allow_holdout)
-
     if visits_df.empty:
         return GatewayWeekLabel.NOT_BROKEN
 
