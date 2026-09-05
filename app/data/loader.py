@@ -118,8 +118,11 @@ def get_gateway_eligibility(
     - Tags each gateway with is_eligible (bool) and exclusion_reason (MissingDataReason | None).
     """
     df = master_df.copy()
-    installed = df["installed_on"] <= monday
-    not_decommissioned = df["decommissioned_on"].isna() | (df["decommissioned_on"] > monday)
+    installed_ts = pd.to_datetime(df["installed_on"])
+    decom_ts = pd.to_datetime(df["decommissioned_on"])
+    monday_ts = pd.to_datetime(monday)
+    installed = installed_ts <= monday_ts
+    not_decommissioned = decom_ts.isna() | (decom_ts > monday_ts)
     is_eligible = installed & not_decommissioned
 
     df["is_eligible"] = is_eligible
@@ -182,15 +185,17 @@ def load_telemetry_window(
     if cutoff_utc.tzinfo is None:
         raise ValueError("cutoff_utc must be a timezone-aware UTC datetime")
 
-    cols = ["gateway_id", "ts_utc"]
-    if columns:
-        for c in columns:
-            if c not in cols:
-                cols.append(c)
-
     telemetry_path = data_dir / "telemetry"
     if not telemetry_path.exists():
         raise FileNotFoundError(f"Telemetry path not found: {telemetry_path}")
+
+    # If columns specified, ensure gateway_id and ts_utc are included
+    cols = None
+    if columns is not None:
+        cols = list(columns)
+        for req in ["gateway_id", "ts_utc"]:
+            if req not in cols:
+                cols.append(req)
 
     # Read parquet partitions
     df = pd.read_parquet(telemetry_path, columns=cols)
