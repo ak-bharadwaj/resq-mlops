@@ -7,7 +7,14 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 import pandas as pd
 
-from app.data.schema import ConflictingRecordError, MissingDataReason
+from app.data.schema import (
+    ConflictingRecordError,
+    FieldVisitsSchemaContract,
+    GatewayMasterSchemaContract,
+    MissingDataReason,
+    SchemaValidationError,
+)
+
 
 # Canonical Gateway ID: 12 uppercase hexadecimal characters, separators removed
 BARE_12HEX_REGEX = re.compile(r"^[0-9A-Fa-f]{12}$")
@@ -66,8 +73,11 @@ def load_gateway_master(data_dir: pathlib.Path) -> pd.DataFrame:
 
     Invariants:
     - Encoded as cp1252 (handles German characters safely).
+    - Preserves leading zeros in numeric IDs via dtype={"gateway_id": str}.
     - Adds canonical_id column using canonicalize_gateway_id.
-    - Dates parsed as dt.date.
+    - Dates parsed as dt.date: installed_on (dt.date), decommissioned_on (Optional dt.date),
+      fw_updated_on (Optional dt.date).
+    - Enforces schema contract invariants via GatewayMasterSchemaContract.
     - Collision safety: equivalent representations across attributes are deduplicated safely;
       distinct records colliding on canonical_id raise ConflictingRecordError.
     """
@@ -77,8 +87,17 @@ def load_gateway_master(data_dir: pathlib.Path) -> pd.DataFrame:
 
     df = pd.read_csv(path, encoding="cp1252", dtype={"gateway_id": str})
     df["canonical_id"] = df["gateway_id"].apply(canonicalize_gateway_id)
-    df["installed_on"] = pd.to_datetime(df["installed_on"]).dt.date
-    df["decommissioned_on"] = pd.to_datetime(df["decommissioned_on"]).dt.date
+
+    if "installed_on" in df.columns:
+        df["installed_on"] = pd.to_datetime(df["installed_on"]).dt.date
+    if "decommissioned_on" in df.columns:
+        df["decommissioned_on"] = pd.to_datetime(df["decommissioned_on"]).dt.date
+    if "fw_updated_on" in df.columns:
+        df["fw_updated_on"] = pd.to_datetime(df["fw_updated_on"]).dt.date
+
+    # Validate schema contract invariants
+    contract = GatewayMasterSchemaContract()
+    contract.validate_or_raise(df)
 
     # Collision safety: Check for equivalent vs distinct collisions on canonical_id
     semantic_cols = [c for c in df.columns if c != "gateway_id"]
@@ -93,6 +112,7 @@ def load_gateway_master(data_dir: pathlib.Path) -> pd.DataFrame:
         )
 
     return deduped
+
 
 
 def verify_field_visits_encoding(data_dir: pathlib.Path) -> str:
@@ -128,17 +148,39 @@ def load_field_visits(data_dir: pathlib.Path) -> pd.DataFrame:
 
     Invariants:
     - Encoding explicitly verified (UTF-8 / CP1252 / latin-1).
+    - String dtypes preserved via dtype={"gateway_id": str, "visit_id": str}.
+    - Schema validation via FieldVisitsSchemaContract.
     - Adds canonical_id column using canonicalize_gateway_id.
     - Dates parsed as dt.date.
+    - Invariants enforced: requested_on <= visited_on, technician_hours >= 0.0.
     - Collision safety: equivalent representations across visit attributes are deduplicated safely;
       distinct records colliding on visit_id raise ConflictingRecordError.
     """
     path = data_dir / "field_visits.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"Missing field_visits.csv at {path}")
+
     encoding = verify_field_visits_encoding(data_dir)
-    df = pd.read_csv(path, encoding=encoding, dtype={"gateway_id": str})
+    df = pd.read_csv(path, encoding=encoding, dtype={"gateway_id": str, "visit_id": str})
+
+    # Validate against authoritative FieldVisitsSchemaContract
+    contract = FieldVisitsSchemaContract()
+    contract.validate(df)
+
+    # Canonicalize gateway ID
     df["canonical_id"] = df["gateway_id"].apply(canonicalize_gateway_id)
+
+    # Parse date fields as datetime.date
     df["requested_on"] = pd.to_datetime(df["requested_on"]).dt.date
     df["visited_on"] = pd.to_datetime(df["visited_on"]).dt.date
+
+    # Enforce date logical ordering: requested_on <= visited_on
+    if (df["requested_on"] > df["visited_on"]).any():
+        raise SchemaValidationError("Date logical ordering violated: requested_on > visited_on")
+
+    # Enforce technician_hours >= 0.0
+    if (df["technician_hours"] < 0.0).any():
+        raise SchemaValidationError("technician_hours must be non-negative (>= 0.0)")
 
     # Collision safety: Check for equivalent vs distinct duplicate visits
     semantic_cols = [c for c in df.columns if c != "gateway_id"]
@@ -153,6 +195,7 @@ def load_field_visits(data_dir: pathlib.Path) -> pd.DataFrame:
         )
 
     return deduped
+
 
 
 def get_gateway_eligibility(
@@ -209,6 +252,11 @@ def resolve_telemetry_duplicates(
         work_df = work_df.copy()
         work_df["canonical_id"] = work_df["gateway_id"].apply(canonicalize_gateway_id)
 
+    if "ts" not in work_df.columns and "ts_utc" in work_df.columns:
+        if work_df is df:
+            work_df = work_df.copy()
+        work_df["ts"] = pd.to_datetime(work_df["ts_utc"], utc=True)
+
     # 1. Check exact duplicates / equivalent representations across all semantic columns
     # Exclude raw formatting columns (gateway_id, and ts_utc if authoritative parsed ts is present)
     excluded = {"gateway_id"}
@@ -250,10 +298,19 @@ def load_telemetry_window(
     """
     if cutoff_utc.tzinfo is None:
         raise ValueError("cutoff_utc must be a timezone-aware UTC datetime")
+    if start_utc is not None and start_utc.tzinfo is None:
+        raise ValueError("start_utc must be a timezone-aware UTC datetime")
 
     telemetry_path = data_dir / "telemetry"
     if not telemetry_path.exists():
-        raise FileNotFoundError(f"Telemetry path not found: {telemetry_path}")
+        if (data_dir / "telemetry.parquet").exists():
+            telemetry_path = data_dir / "telemetry.parquet"
+        elif data_dir.is_dir() and len(list(data_dir.glob("*.parquet"))) > 0:
+            telemetry_path = data_dir
+        elif data_dir.suffix == ".parquet" and data_dir.exists():
+            telemetry_path = data_dir
+        else:
+            raise FileNotFoundError(f"Telemetry path not found: {telemetry_path}")
 
     # If columns specified, separate physical parquet columns from derived columns ('canonical_id', 'ts')
     cols = None
@@ -271,8 +328,6 @@ def load_telemetry_window(
     # Apply strict temporal firewall BEFORE canonicalization to avoid wasteful compute
     mask = df["ts"] < cutoff_utc
     if start_utc is not None:
-        if start_utc.tzinfo is None:
-            raise ValueError("start_utc must be a timezone-aware UTC datetime")
         mask = mask & (df["ts"] >= start_utc)
 
     window_df = df.loc[mask].copy()
