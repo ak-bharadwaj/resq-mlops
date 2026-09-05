@@ -36,7 +36,11 @@ from app.model.scorer import (
     WeightedMultiSignalScorer,
     get_scorer_for_config,
 )
-from app.model.train import compute_artifact_hash, train_candidate
+from app.model.train import (
+    PackageAlreadyExistsError,
+    compute_artifact_hash,
+    train_candidate,
+)
 
 
 @pytest.fixture
@@ -397,8 +401,9 @@ class TestCandidateMaterializationAndProductionSeparation:
             runs_dir=runs_dir,
         )
 
-        # Assert all required files exist per Section 6
+        # Assert all required files exist per Section 6 / v25
         expected_files = [
+            "model.joblib",
             "model_config.json",
             "feature_schema.json",
             "schema.json",
@@ -424,6 +429,35 @@ class TestCandidateMaterializationAndProductionSeparation:
         )
         assert res1["artifact_hash"] == res2["artifact_hash"]
 
+    def test_candidate_package_immutability_fails_on_overwrite(self, real_data_dir: Path, tmp_path: Path):
+        """train_candidate strictly refuses to overwrite an existing frozen model package."""
+        target_dir = tmp_path / "v0002_immutable"
+        runs_dir = tmp_path / "runs"
+
+        # 1. First materialization succeeds
+        train_candidate(
+            data_dir=real_data_dir,
+            candidate_version="v0002",
+            output_dir=target_dir,
+            runs_dir=runs_dir,
+        )
+        manifest_before = (target_dir / "manifest.json").read_text(encoding="utf-8")
+        joblib_before = (target_dir / "model.joblib").read_bytes()
+
+        # 2. Attempting to overwrite existing package raises PackageAlreadyExistsError
+        with pytest.raises(PackageAlreadyExistsError) as excinfo:
+            train_candidate(
+                data_dir=real_data_dir,
+                candidate_version="v0002",
+                output_dir=target_dir,
+                runs_dir=runs_dir,
+            )
+        assert "Model packages are immutable and cannot be overwritten" in str(excinfo.value)
+
+        # 3. Assert package contents are completely untouched
+        assert (target_dir / "manifest.json").read_text(encoding="utf-8") == manifest_before
+        assert (target_dir / "model.joblib").read_bytes() == joblib_before
+
     def test_candidate_training_never_mutates_active_production_pointer(self, real_data_dir: Path, tmp_path: Path):
         """train_candidate never alters registry/active.json (stays v0001)."""
         registry_file = tmp_path / "active.json"
@@ -438,7 +472,7 @@ class TestCandidateMaterializationAndProductionSeparation:
         train_candidate(
             data_dir=real_data_dir,
             candidate_version="v0002",
-            output_dir=tmp_path / "v0002",
+            output_dir=tmp_path / "v0002_mut_test",
             registry_path=registry_file,
             runs_dir=tmp_path / "runs",
         )

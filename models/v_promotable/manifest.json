@@ -3,7 +3,7 @@
   "model_type": "deterministic_weighted_multisignal",
   "feature_version": "features-v1",
   "schema_version": "telemetry-v1",
-  "artifact_hash": "sha256:23634c580243f2eade7330f57f8fe142883838dc3dd6771de59ab520a4705ab7",
+  "artifact_hash": "sha256:975f0030f79818f39f168a13942a8a337ae80aa7a4b0721df68d03d8bd156403",
   "evaluation_mode": "cost_backtest",
   "evidence_quality": "promotable_fixture",
   "evaluation_scope": "precision_biased_sample",

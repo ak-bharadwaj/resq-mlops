@@ -219,7 +219,7 @@ def test_target_validation_verifies_actual_artifact_hash(tmp_path):
     tampered_dir.mkdir()
 
     # Copy standard valid files from v0001
-    for fname in ["schema.json", "feature_schema.json", "model_config.json", "scorer_identity.txt"]:
+    for fname in ["schema.json", "feature_schema.json", "model_config.json", "scorer_identity.txt", "model.joblib"]:
         (tampered_dir / fname).write_bytes((pathlib.Path("models/v0001") / fname).read_bytes())
 
     # Set model_version to v_tampered in config

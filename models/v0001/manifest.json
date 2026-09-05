@@ -3,7 +3,7 @@
   "model_type": "baseline_3sigma_anomaly",
   "feature_version": "baseline-v1",
   "schema_version": "telemetry-v1",
-  "artifact_hash": "sha256:5f72f001d5adf56f025eb06f97bdce5cd78aa802be094a9d06079cfa3157323e",
+  "artifact_hash": "sha256:b070c9a71c84fc3b9082989cab66a648b695272424425a7222f60c9338f5375d",
   "evaluation_mode": "cost_backtest",
   "evidence_quality": "baseline",
   "evaluation_scope": "precision_biased_sample",

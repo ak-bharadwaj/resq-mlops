@@ -154,6 +154,7 @@ def test_train_never_mutates_active_production_state(repo_root: pathlib.Path, tm
     assert (candidate_out / "model_config.json").exists()
     assert (candidate_out / "schema.json").exists()
     assert (candidate_out / "feature_schema.json").exists()
+    assert (candidate_out / "model.joblib").exists()
     assert (candidate_out / "scorer_identity.txt").exists()
     assert (candidate_out / "metrics.json").exists()
 
@@ -398,6 +399,7 @@ def test_v0001_packaging_cryptographic_binding(repo_root: pathlib.Path, tmp_path
     assert cfg["recent_days"] == 7
     assert cfg["sigma"] == 3.0
     assert cfg["visits_per_week"] == 15
+    assert (cand_dir / "model.joblib").exists()
 
     # Artifact hash verification
     art_hash = compute_artifact_hash(cand_dir)

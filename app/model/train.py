@@ -19,6 +19,7 @@ import json
 import pathlib
 from typing import Any, Optional
 
+import joblib
 import pandas as pd
 
 from app.data.loader import (
@@ -33,16 +34,25 @@ class TrainingError(Exception):
     """Raised when training, feature construction, or candidate materialization fails."""
 
 
+class PackageAlreadyExistsError(TrainingError):
+    """Raised when attempting to overwrite an existing frozen model package."""
+
+
 def compute_artifact_hash(model_dir: pathlib.Path) -> str:
-    """Compute SHA256 covering immutable behavior-defining artifact files."""
+    """Compute SHA256 covering immutable behavior-defining artifact files per v25 Section 6.
+
+    Hash covers: canonical model.joblib + model_config.json + feature_schema.json + scorer_identity.txt.
+    schema.json is validated as part of the artifact contract but is not duplicated into hash inputs.
+    """
     hasher = hashlib.sha256()
-    # Canonical order of behavior-defining artifact files per Section 6 / v25
-    hash_files = ["model_config.json", "feature_schema.json", "schema.json", "scorer_identity.txt"]
+    # Canonical order of behavior-defining artifact files per v25 Section 6
+    hash_files = ["model.joblib", "model_config.json", "feature_schema.json", "scorer_identity.txt"]
     for fname in hash_files:
         fpath = model_dir / fname
-        if fpath.exists():
-            hasher.update(fname.encode("utf-8"))
-            hasher.update(fpath.read_bytes())
+        if not fpath.exists():
+            raise FileNotFoundError(f"Required behavior-defining artifact file missing for hash: {fpath}")
+        hasher.update(fname.encode("utf-8"))
+        hasher.update(fpath.read_bytes())
     return f"sha256:{hasher.hexdigest()}"
 
 
@@ -94,8 +104,14 @@ def train_candidate(
     for gid in dev_gateways:
         HoldoutProtection.check_gateway_access(gid, holdout_ids, allow_holdout=False)
 
-    # 4. Destination Candidate Directory
+    # 4. Destination Candidate Directory and Immutability Guard
     target_dir = output_dir or (pathlib.Path("models") / candidate_version)
+    if target_dir.exists() and (target_dir / "manifest.json").exists():
+        raise PackageAlreadyExistsError(
+            f"Frozen model package already exists at '{target_dir}'. "
+            f"Model packages are immutable and cannot be overwritten. "
+            f"To train a new model, declare a new version."
+        )
     target_dir.mkdir(parents=True, exist_ok=True)
 
     # 5. Model Configuration & Feature Schema based on Candidate Version
@@ -207,6 +223,32 @@ def train_candidate(
     (target_dir / "scorer_identity.txt").write_text(
         scorer_identity_content, encoding="utf-8"
     )
+
+    # 7b. Serialize canonical model state into model.joblib per Section 6 / v25
+    if candidate_version == "v0002":
+        model_payload = {
+            "model_version": candidate_version,
+            "model_type": model_type,
+            "scorer_class": "WeightedMultiSignalScorer",
+            "weights": config_data.get("weights", {}),
+            "metrics": config_data.get("metrics", []),
+            "baseline_days": config_data.get("baseline_days", 28),
+            "recent_days": config_data.get("recent_days", 7),
+            "sigma": config_data.get("sigma", 3.0),
+            "expected_hours_week": config_data.get("expected_hours_week", 168),
+        }
+    else:
+        model_payload = {
+            "model_version": candidate_version,
+            "model_type": model_type,
+            "scorer_class": "Baseline3SigmaScorer",
+            "baseline_days": config_data.get("baseline_days", 28),
+            "recent_days": config_data.get("recent_days", 7),
+            "sigma": config_data.get("sigma", 3.0),
+            "metrics": config_data.get("metrics", []),
+            "visits_per_week": config_data.get("visits_per_week", 15),
+        }
+    joblib.dump(model_payload, target_dir / "model.joblib")
 
     # 8. Compute artifact_hash covering behavior-defining files
     artifact_hash = compute_artifact_hash(target_dir)

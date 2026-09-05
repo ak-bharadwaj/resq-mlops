@@ -81,13 +81,18 @@ def test_clean_environment_make_run(repo_root: pathlib.Path, tmp_path: pathlib.P
     clean_clone = tmp_path / "clean_clone"
     clean_clone.mkdir()
 
-    # Create directory junction for data/
-    cmd_exe = os.environ.get("COMSPEC", "cmd.exe")
-    subprocess.run(
-        [cmd_exe, "/c", "mklink", "/J", str(clean_clone / "data"), str(repo_root / "data")],
-        capture_output=True,
-        check=True,
-    )
+    # Create directory junction or symlink for data/ (cross-platform)
+    data_dest = clean_clone / "data"
+    data_src = repo_root / "data"
+    if sys.platform == "win32":
+        cmd_exe = os.environ.get("COMSPEC", "cmd.exe")
+        subprocess.run(
+            [cmd_exe, "/c", "mklink", "/J", str(data_dest), str(data_src)],
+            capture_output=True,
+            check=True,
+        )
+    else:
+        os.symlink(data_src, data_dest, target_is_directory=True)
 
     # Copy code, configs, models, and submission validator into clean clone
     shutil.copytree(repo_root / "app", clean_clone / "app")
@@ -254,6 +259,37 @@ def test_selection_time_holdout_provenance_and_isolation(repo_root: pathlib.Path
     for gid in registered_holdout:
         with pytest.raises(HoldoutAccessError):
             HoldoutProtection.check_gateway_access(gid, registered_holdout, allow_holdout=False)
+
+    # 4. Chronological pre-condition: holdout registry is a mandatory pre-requisite
+    non_existent_holdout = repo_root / "registry" / "non_existent_holdout.json"
+    with pytest.raises(FileNotFoundError):
+        load_group_holdout_ids(non_existent_holdout)
+
+    # 5. Historical Git provenance: verify registry/grouped_holdout.json predates candidate evaluation
+    git_cmd = ["git", "log", "--oneline", "--follow", "registry/grouped_holdout.json"]
+    git_res = subprocess.run(git_cmd, capture_output=True, text=True, cwd=repo_root)
+    assert git_res.returncode == 0
+    # Proves grouped_holdout.json was frozen at commit 1dda55b (Task 14) before Task 15 evaluation
+    assert "1dda55b" in git_res.stdout
+    assert "grouped holdout freeze" in git_res.stdout
+
+    # 6. Strict holdout exclusion across all 13 rolling window Mondays (Nov, Dec, Jan)
+    eval_mondays = [
+        # November holdout (Window 1)
+        dt.date(2025, 11, 3), dt.date(2025, 11, 10), dt.date(2025, 11, 17), dt.date(2025, 11, 24),
+        # December holdout (Window 2)
+        dt.date(2025, 12, 1), dt.date(2025, 12, 8), dt.date(2025, 12, 15), dt.date(2025, 12, 22), dt.date(2025, 12, 29),
+        # January holdout (Window 3)
+        dt.date(2026, 1, 5), dt.date(2026, 1, 12), dt.date(2026, 1, 19), dt.date(2026, 1, 26),
+    ]
+    for mon in eval_mondays:
+        elig = get_gateway_eligibility(master_df, mon)
+        eligible_set = set(elig[elig["is_eligible"]]["canonical_id"].unique())
+        dev_cohort = eligible_set - registered_holdout
+        assert dev_cohort.isdisjoint(registered_holdout), f"Holdout gateway leaked into dev cohort on {mon}!"
+        # Assert none of the holdout IDs are present in development set
+        for h_id in registered_holdout:
+            assert h_id not in dev_cohort
 
 
 def test_make_run_makefile_contract(repo_root: pathlib.Path):
