@@ -1,75 +1,44 @@
-# Architectural & Governance Decisions (DECISIONS.md)
+# Architectural Decisions (DECISIONS.md)
 
 Written for the Operations Manager and Engineering Leadership.
+In strict accordance with Challenge Part 1 deliverables and ARCHITECTURE_v25_FREEZE.md Section 16.
+
+---
 
 ## 1. Track Selection: MLOps Architecture (Track F)
-- **Chosen**: Track F — MLOps Architecture. Focus on end-to-end lifecycle governance, structural schema drift guards, deterministic evidence evaluation, atomic promotion/rejection, and reversible rollback.
-- **Alternative Rejected**: Track ML (Novel Model Optimization).
-- **Rationale**: Real-world operational reliability and field-dispatch economics depend on trustworthy lifecycle controls and audit trails. A complex model without strict contracts, replayability, and safe rollback poses higher business risk.
 
-## 2. Evidence Mode & Ground-Truth Framing
-- **Chosen**: Retrospective detection of degraded gateways using audited evidence (COST_BACKTEST with €600/week penalty differential, or HEURISTIC fallback if audit sanity < 3 cases).
-- **Alternative Rejected**: Treating ambiguous visit notes as uncalibrated ground truth, or attempting onset forecasting without adequate labeled development data.
-- **Rationale**: LPDG's ground truth is inaccessible and field visits represent a selection-biased sample (only suspected gateways were visited). We explicitly disclose evaluation scope: precision-oriented on observed subset, not fleet-wide recall.
+- **Decision**: Primary track chosen is **Track F (MLOps Architecture)**.
+- **Alternative Rejected**: Track ML (Novel Model Optimization as primary focus).
+- **Operations Rationale**: The central business challenge for LPDG is the allocation of €45,600 in fixed technician dispatch costs (15 visits/week × 8 weeks × €380) while mitigating €600 weekly fault penalties across an expanding operational fleet. In field operations, deploying a complex black-box model without cryptographic replay determinism, schema drift protection, or verified atomic rollback creates unacceptable financial and service reliability risks. Prioritizing lifecycle governance guarantees auditable, fail-closed maintenance decisions.
 
-## 3. Evaluation Gate: Expanding Temporal Windows + Grouped Holdout
-- **Chosen**: Three rolling expanding training windows (Aug-Oct -> Nov, Aug-Nov -> Dec, Aug-Dec -> Jan) plus a strictly isolated set of grouped holdout gateways (`GROUP_HOLDOUT_IDS`).
-- **Alternative Rejected**: Single temporal split or unstratified random k-fold cross-validation.
-- **Rationale**: Directly answers the skeptic's requirement for forward-in-time stability and generalizability across unseen hardware. Promotion requires >=10% aggregate cost improvement, no regression in any individual month, and grouped holdout agreement.
+---
 
-## 4. 15-Visit Hard Limit & Deferred Backlog Reporting
-- **Chosen**: predict.py always ranks all eligible gateways and emits the top 15 strictly formatted rows, writing ranks 16+ to `backlog_report.json`.
-- **Alternative Rejected**: Outputting fewer than 15 rows when model confidence is low, or omitting low-confidence selections.
-- **Rationale**: The challenge and operations contract mandates 15 dispatches per week (€45,600 fixed cost across 8 weeks). Emitting fewer than 15 violates submission contracts. Deferred risks are made visible to operations via backlog reports.
+## 2. Evidence Mode & Ground-Truth Framing (`COST_BACKTEST`)
 
-## 5. Rollback Mechanism: Atomic Filesystem Registry with Cryptographic Replay
-- **Chosen**: Atomic pointer swap in `registry/active.json`, prior artifact pre-validation, and SHA-256 replay hash verification.
-- **Alternative Rejected**: Rolling back by triggering a code rollback or re-training.
-- **Rationale**: Operational rollback must be instantaneous (<1 second), fully offline, and demonstrably restore identical predictions.
+- **Decision**: Ground truth is framed around **retrospective detection of degraded hardware** evaluated under **`COST_BACKTEST`** mode (€600/week fault penalty differential), supported by audited historical work orders.
+- **Alternative Rejected**: Treating raw field visits as uncalibrated positive ground truth, or framing the primary task as leading failure onset forecasting.
+- **Operations Rationale**: Historical records show that 60.8% of past field visits (382 of 628) were false alarms where no fault was found (`Kein Fehler gefunden`). Only 218 visits involved confirmed component repairs (power supplies, antennas, swapped gateways). Equating every historical visit to a confirmed failure would severely miscalibrate dispatch priorities. Furthermore, field visits represent an operational selection bias (only suspected gateways were inspected; silently broken gateways lack visit records). The €600/week penalty delta measures real avoided operational losses on confirmed hardware episodes, while the forgone lead-time of retrospective detection is transparently acknowledged in `LIMITATIONS.md`.
 
-## 6. Label Audit & Evaluation Target (`label_spec_v1`)
-- **Chosen**: Pure deterministic failure proxy `label_gateway_week()` returning `BROKEN`, `NOT_BROKEN`, or `UNKNOWN_RIGHT_CENSORED`, evaluated under `COST_BACKTEST` mode with €600/week fault penalty accounting and `evidence_quality = "strong"`.
-- **Alternative Rejected**: Treating all field visits as positive ground-truth failures, treating unobserved terminal outcomes at end-of-data as resolved healthy gateways, or using HEURISTIC mode despite passing interpretability sanity.
-- **Rationale**:
-  - **Empirical Development Audit (through 2026-01-31)**: Evaluated 628 historical visits; 218 confirmed hardware faults (`outcome == 'Fehler behoben'`) replacing power supplies (`Netzteil`: 38), antennas (`Antenne`: 36), cables (`Kabel`: 35), swapped gateways (`Gateway getauscht`: 28), and SIM cards (`SIM-Karte`: 25). 382 visits (60.8%) were false alarms (`Kein Fehler gefunden`), proving raw visit dispatch cannot be equated with ground-truth failure.
-  - **Sanity Gate ($N \ge 3$)**: Three clear, documented historical cases (`0E61D34F9993` with replaced power supply, `0ED0849FD6D8` with replaced antenna, `0A68A2032450` with swapped hardware) confirm that pre-repair chronic telemetry and meter failures (meter read rate dropped to 39%) recover immediately post-visit (reboots drop to 0, meter read rate restores to 90.4%). Exactly 137 broken gateway-weeks are confirmed across the 13 rolling evaluation Mondays.
-  - **Episode & Censoring Semantics**: €600/week penalty accrues across active broken weeks between fault request and visit resolution (inclusive of visit week per FAQ 5.2). Faults requested whose resolution cannot be observed before the observation window ends are classified as `UNKNOWN_RIGHT_CENSORED` and excluded from the economic evaluation denominator.
-  - **Operational Limitations Disclosed**: Evaluation scope is `precision_biased_sample` (FAQ 4.4: only suspected gateways were visited; no row exists for quietly broken unvisited gateways). System detects already-degraded gateways retrospectively; early forecasting lead time is noted as a future enhancement.
+---
 
-## 7. Deterministic Candidate Scorer (`v0002`) & Frozen Feature Foundation
-- **Chosen**: Deterministic weighted multi-signal scorer `WeightedMultiSignalScorer` in `app/model/scorer.py` combining 3-sigma anomaly persistence (`flagged_hours`, normalized to [0.0, 1.0]) and recent silence ratio (`recent_silence_ratio`, missing observations relative to 168 fixed expected hourly contract), with deterministic configuration weights $w_{\text{anomaly}} = 0.70$ and $w_{\text{silence}} = 0.30$.
-- **Alternative Rejected**: Stochastic learners, complex ensembles, hyperparameter auto-tuning, or gateway-specific historical reporting denominators.
-- **Rationale**:
-  - **Silence Risk Remediation**: Baseline 3-sigma evaluates anomalies only over existing telemetry rows. A completely silent gateway emits zero rows and is erroneously scored as zero-risk (calm). Combining `recent_silence_ratio` explicitly scores total silence as high risk ($1.0 \times 0.30 = 0.30$), prioritizing silent gateways above normal calm reporting gateways ($0.0$).
-  - **Fixed 168h Denominator**: Per v25 Section 2B, `recent_silence_ratio` uses the frozen hourly contract grain (168 expected hours in a 7-day window), never ambiguous gateway-specific historical averages.
-  - **Missing Data Taxonomy**: Institutional non-coverage (zero rows in entire 28-day baseline) is classified as `NO_TELEMETRY` and excluded with audit logging, never fabricated as zero risk. Recently silent gateways with established history are preserved and surfaced via `recent_silence_ratio`.
-  - **Grouped Holdout Isolation**: Canonical `GROUP_HOLDOUT_IDS` (59 gateways) are frozen deterministically into `registry/grouped_holdout.json` before candidate selection and strictly barred from candidate development/training via `HoldoutProtection` (Rule 8).
-  - **Zero Production Mutation**: Candidate materialization (`train_candidate`) produces immutable package `models/v0002/` and training log `runs/training/train_v0002.json`, leaving `registry/active.json` byte-for-byte untouched (`v0001` remains active). Promotion is strictly deferred to the multi-window evidence gate in Task 15.
+## 3. Model Architecture & Scope (`v0001` vs `v0002`)
 
-## 8. Multi-Window Evidence Gate & Holdout Rejection Protection (`v0002` Decision)
-- **Chosen**: Strict multi-window rolling evaluation (Nov, Dec, Jan holdouts = 13 Mondays) and isolated grouped holdout (`GROUP_HOLDOUT_IDS` = 59 gateways) with four-condition deterministic promotion policy:
-  1. Coverage $\ge 0.90$ (`REJECT_COVERAGE`)
-  2. Aggregate missed broken gateway weeks $\ge 10.0\%$ lower than active (`REJECT_NOT_BETTER`)
-  3. Zero individual window regression (`REJECT_WINDOW_REGRESSION`)
-  4. Grouped holdout directional agreement (`REJECT_GROUPED_DISAGREEMENT`)
-  Decision outcome for candidate `v0002`: **REJECT** (`REJECT_GROUPED_DISAGREEMENT`). Active model strictly remains `v0001`.
-- **Alternative Rejected**: Promoting candidate `v0002` based solely on its aggregate temporal gain, ignoring holdout regression, relaxing the promotion threshold, or mutating feature weights post-holdout.
-- **Rationale**:
-  - **Empirical Gate Results**:
-    - **Temporal Windows (Development Fleet)**: Active missed 71 vs Candidate missed 60 broken weeks (-11 missed weeks = 15.49% aggregate cost reduction, clearing the 10.0% threshold). Individual windows: Nov 32 -> 26 (+18.75%), Dec 24 -> 20 (+16.67%), Jan 15 -> 14 (+6.67%), with zero window regressions.
-    - **Grouped Holdout (59 Unseen Gateways)**: Active missed 17 vs Candidate missed 18 broken weeks (+1 regression on unseen hardware).
-    - **Policy Verdict**: Candidate fails condition 4 (`REJECT_GROUPED_DISAGREEMENT`).
-  - **Operations-Manager Economic Defense**:
-    - **Dispatch Economics**: Technician visit allocation is €45,600.00 fixed (120 visits × €380, constant across all valid submissions). Missed-fault penalties differ: active €88,200 vs candidate €81,600 (a €6,600 penalty savings on historical development data).
-    - **Lifecycle Safety**: Despite attractive historical backtest numbers, the candidate fails to generalize to unseen hardware in the fleet holdout. Promoting `v0002` would risk regressing service quality on unobserved regional hardware. The gate operated exactly as designed: rejecting unproven candidates and safeguarding production.
-  - **Production Invariant**: `registry/active.json` is byte-for-byte unchanged; `v0001` remains active in production and is served for all submission runs.
+- **Decision**: Maintain **`v0001` (3-sigma baseline anomaly scorer)** as the immutable production foundation, with **`v0002` (deterministic weighted multi-signal scorer)** developed as an offline candidate combining 3-sigma anomaly persistence ($w_{\text{anomaly}} = 0.70$) and recent silence ratio ($w_{\text{silence}} = 0.30$) over a fixed 168-hour weekly grain.
+- **Alternative Rejected**: Unconstrained statistical learners, stochastic gradient models, dynamic threshold auto-tuning, or gateway-specific reporting denominators.
+- **Operations Rationale**: In production, the 3-sigma baseline exhibits a critical vulnerability: completely silent gateways emit zero telemetry rows and are falsely scored as calm (zero risk). The candidate explicitly scores total silence as high risk ($1.0 \times 0.30 = 0.30$), prioritizing silent uncommunicative assets ahead of healthy reporting hardware. Features and weights were frozen directly from architecture specifications without holdout tuning, preserving full operational explainability within the mandatory 300-character dispatch reason field.
 
-## 9. Rollback Mechanism & Deterministic Replay Proof (Task 16)
-- **Chosen**: Two-phase rollback lifecycle combining target package pre-validation (manifest integrity, schema contract, model configuration, scorer identity, and smoke prediction), atomic filesystem replacement (`os.replace`) of `registry/active.json`, and cryptographic replay equality verification (`replay_hash`). Tested via committed lifecycle fixture `v_promotable` with round-trip proof back to `v0001`.
-- **Alternative Rejected**: Direct in-place mutation of active pointer without prior target validation, relying on Git revert / code deployment for rollbacks, or altering the real candidate `v0002` rejection verdict.
-- **Rationale**:
-  - **Pre-Validation Safety Guard**: Attempting to rollback to a non-existent or corrupted model package (e.g. missing `manifest.json` or invalid schema) fails closed prior to state mutation (`RollbackTargetValidationError`), leaving `registry/active.json` byte-for-byte untouched.
-  - **Deterministic Replay Equality**: The restored `v0001` production model produces the exact, bit-for-bit identical prediction list and replay hash (`sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838`) as the original pre-promotion baseline run.
-  - **Candidate Retention**: Rollback mutates only the active production pointer and appends audit events to `registry/history.jsonl`. Candidate artifacts (`models/v_promotable/`, `models/v0002/`) remain completely intact for forensic investigation.
-  - **Operational CLI**: `python scripts/rollback.py [--to <version>]` provides operations personnel with unambiguous execution logs and clear exit codes (0 for success, 1 for failure), ensuring complete auditability.
+---
 
+## 4. Promotion Gate, Candidate Rejection & Atomic Rollback
+
+- **Decision**: Implement a **four-condition deterministic promotion gate** evaluated over three expanding temporal windows (Nov, Dec, Jan) plus an isolated grouped fleet holdout (`GROUP_HOLDOUT_IDS`), paired with an **atomic filesystem rollback mechanism** with cryptographic replay verification.
+- **Alternative Rejected**: Promoting candidate `v0002` based solely on its aggregate temporal score, relaxing the holdout constraint, or relying on code redeployments / manual intervention for rollback.
+- **Operations Rationale**: Candidate `v0002` achieved an aggregate 15.49% reduction in missed broken weeks on the development fleet (71 missed in active vs 60 in candidate, saving €6,600 in simulated fault penalties with zero window regressions). However, on the 59 unseen holdout gateways, candidate `v0002` regressed (17 missed in active vs 18 in candidate). The promotion policy strictly failed closed with `REJECT_GROUPED_DISAGREEMENT`, keeping production safely anchored on `v0001`. For operational agility, rollback is achieved in $<1$ second via atomic pointer swap in `registry/active.json`, restoring exact bit-for-bit replay equality.
+
+---
+
+## 5. Data Correctness & Operational Fleet Boundaries
+
+- **Decision**: Enforce authoritative **canonical gateway-ID normalization** (`^[0-9A-F]{12}$`), strict **Monday 00:00:00 UTC cutoff firewalls** across all ingestion paths, a **fleet source-completeness guard** (tripping to `BLOCK_FEATURES` if $>50\%$ of eligible gateways are missing), and a **mandatory 15-visit submission contract** with deferred assets tracked in `backlog_report.json`.
+- **Alternative Rejected**: Allowing inconsistent colon-separated/bare ID joins, soft wall-clock timestamps (`datetime.now()`), fabricating zeros for unobserved gateways, or emitting fewer than 15 weekly dispatches when model confidence is low.
+- **Operations Rationale**: Operations requires exactly 15 technician dispatches every Monday (€45,600 committed across 8 weeks). Emitting fewer than 15 visits violates service agreements, while emitting unverified padding incurs wasted truck-roll opportunity costs. Gateways with zero historical telemetry are classified as `NO_TELEMETRY` rather than scored with fabricated calmness. High-risk gateways ranked 16+ are preserved with full economic impact in `backlog_report.json` so dispatch managers retain complete visibility into deferred fleet risk.

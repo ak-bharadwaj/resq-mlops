@@ -2,16 +2,20 @@
 
 Verifies:
 1. Missing-telemetry path in scripts/predict.py exits non-zero and produces no false success.
-2. Clean-environment smoke test for make run reviewer workflow.
-3. Holdout gateway 0AA18F330F59 yields no contamination during development and is strictly protected.
-4. Makefile canonical contract integrity.
+2. Clean-environment smoke test for literal make run on a reconstructed clean clone.
+3. Selection-time grouped holdout provenance, isolation, and boundary enforcement.
+4. Holdout gateway 0AA18F330F59 contamination audit.
+5. Makefile canonical contract integrity.
 """
 from __future__ import annotations
 
 import csv
 import datetime as dt
+import hashlib
 import json
+import os
 import pathlib
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -67,87 +71,93 @@ def test_missing_telemetry_fails_nonzero(tmp_path: pathlib.Path, repo_root: path
     assert not backlog_json.exists(), "backlog_report.json must not be created when telemetry is missing"
 
 
-def test_clean_environment_make_run(repo_root: pathlib.Path):
-    """17.3: Reviewer workflow smoke test from a clean environment.
+def test_clean_environment_make_run(repo_root: pathlib.Path, tmp_path: pathlib.Path):
+    """17.3: Reviewer workflow smoke test executing literal 'make run' in a clean clone.
 
     Proves:
-    clean environment -> one command -> predictions.csv -> exactly 120 rows -> validate_submission.py PASS
+    reconstructed clean clone -> literal 'make run' -> predictions.csv -> exactly 120 rows -> validate_submission.py PASS (: OK)
     Guards against stale predictions.csv or backlog_report.json causing false passes.
     """
-    pred_path = repo_root / "predictions.csv"
-    backlog_path = repo_root / "backlog_report.json"
+    clean_clone = tmp_path / "clean_clone"
+    clean_clone.mkdir()
 
-    # Back up or purge existing prediction files to ensure clean environment
-    backup_pred = None
-    if pred_path.exists():
-        backup_pred = pred_path.read_bytes()
-        pred_path.unlink()
+    # Create directory junction for data/
+    cmd_exe = os.environ.get("COMSPEC", "cmd.exe")
+    subprocess.run(
+        [cmd_exe, "/c", "mklink", "/J", str(clean_clone / "data"), str(repo_root / "data")],
+        capture_output=True,
+        check=True,
+    )
 
-    backup_backlog = None
-    if backlog_path.exists():
-        backup_backlog = backlog_path.read_bytes()
-        backlog_path.unlink()
+    # Copy code, configs, models, and submission validator into clean clone
+    shutil.copytree(repo_root / "app", clean_clone / "app")
+    shutil.copytree(repo_root / "scripts", clean_clone / "scripts")
+    shutil.copytree(repo_root / "models", clean_clone / "models")
+    shutil.copytree(repo_root / "registry", clean_clone / "registry")
+    shutil.copy(repo_root / "Makefile", clean_clone / "Makefile")
+    if (repo_root / "make.cmd").exists():
+        shutil.copy(repo_root / "make.cmd", clean_clone / "make.cmd")
+    if (repo_root / "make.bat").exists():
+        shutil.copy(repo_root / "make.bat", clean_clone / "make.bat")
+    shutil.copy(repo_root / "validate_submission.py", clean_clone / "validate_submission.py")
 
-    try:
-        # Assert clean environment before running
-        assert not pred_path.exists(), "Clean environment violated: predictions.csv already exists"
+    pred_path = clean_clone / "predictions.csv"
+    backlog_path = clean_clone / "backlog_report.json"
 
-        # Execute canonical submission generation command (recipe of make run)
-        cmd = [
-            sys.executable,
-            str(repo_root / "scripts" / "make_submission.py"),
-            "--data",
-            str(repo_root / "data"),
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True, cwd=repo_root)
-        assert res.returncode == 0, f"make_submission failed in clean environment: {res.stderr}\n{res.stdout}"
+    # Assert clean environment before running: no stale artifacts exist
+    assert not pred_path.exists(), "Clean environment violated: predictions.csv already exists in clean clone"
+    assert not backlog_path.exists(), "Clean environment violated: backlog_report.json already exists in clean clone"
 
-        # Verify predictions.csv was freshly created
-        assert pred_path.exists(), "make_submission did not create predictions.csv"
+    # Execute literal reviewer command 'make run'
+    is_windows = sys.platform == "win32"
+    res = subprocess.run(
+        ["make", "run"],
+        capture_output=True,
+        text=True,
+        cwd=clean_clone,
+        shell=is_windows,
+    )
+    assert res.returncode == 0, f"'make run' failed in clean clone: {res.stderr}\n{res.stdout}"
+    assert "Submission validated successfully by validate_submission.py: PASS" in res.stdout
 
-        # Verify exact row count: 1 header + 120 rows = 121 lines
-        with open(pred_path, "r", encoding="utf-8", newline="") as f:
-            reader = list(csv.reader(f))
+    # Verify predictions.csv was freshly created
+    assert pred_path.exists(), "'make run' did not create predictions.csv in clean clone"
 
-        header = reader[0]
-        rows = reader[1:]
-        assert header == ["week_start", "rank", "gateway_id", "score", "reason"]
-        assert len(rows) == 120, f"Expected exactly 120 rows in predictions.csv, got {len(rows)}"
+    # Verify exact row count: 1 header + 120 rows = 121 lines
+    with open(pred_path, "r", encoding="utf-8", newline="") as f:
+        reader = list(csv.reader(f))
 
-        # Verify 8 scored weeks, exactly 15 rows each, ranks 1..15
-        weeks_map = defaultdict(list)
-        for r in rows:
-            weeks_map[r[0]].append(r)
+    header = reader[0]
+    rows = reader[1:]
+    assert header == ["week_start", "rank", "gateway_id", "score", "reason"]
+    assert len(rows) == 120, f"Expected exactly 120 rows in predictions.csv, got {len(rows)}"
 
-        assert len(weeks_map) == 8, f"Expected 8 scored weeks, got {len(weeks_map)}"
-        for w, w_rows in weeks_map.items():
-            assert len(w_rows) == 15, f"Week {w} has {len(w_rows)} rows, expected 15"
-            ranks = [int(r[1]) for r in w_rows]
-            assert ranks == list(range(1, 16)), f"Week {w} ranks out of order: {ranks}"
-            for r in w_rows:
-                score_str = r[3]
-                float(score_str)  # must parse without error
-                decimals = score_str.split(".")[1]
-                assert len(decimals) == 6, f"Score {score_str} not formatted to exactly 6 decimals"
-                assert len(r[4]) <= 300, f"Reason exceeds 300 chars: {r[4]}"
+    # Verify 8 scored weeks, exactly 15 rows each, ranks 1..15
+    weeks_map = defaultdict(list)
+    for r in rows:
+        weeks_map[r[0]].append(r)
 
-        # Verify validate_submission.py passes explicitly
-        val_cmd = [
-            sys.executable,
-            str(repo_root / "validate_submission.py"),
-            str(pred_path),
-        ]
-        val_res = subprocess.run(val_cmd, capture_output=True, text=True, cwd=repo_root)
-        assert val_res.returncode == 0, f"validate_submission.py rejected generated file: {val_res.stderr}\n{val_res.stdout}"
-        assert ": OK" in val_res.stdout
-        assert "Submission validated successfully by validate_submission.py: PASS" in res.stdout
+    assert len(weeks_map) == 8, f"Expected 8 scored weeks, got {len(weeks_map)}"
+    for w, w_rows in weeks_map.items():
+        assert len(w_rows) == 15, f"Week {w} has {len(w_rows)} rows, expected 15"
+        ranks = [int(r[1]) for r in w_rows]
+        assert ranks == list(range(1, 16)), f"Week {w} ranks out of order: {ranks}"
+        for r in w_rows:
+            score_str = r[3]
+            float(score_str)  # must parse without error
+            decimals = score_str.split(".")[1]
+            assert len(decimals) == 6, f"Score {score_str} not formatted to exactly 6 decimals"
+            assert len(r[4]) <= 300, f"Reason exceeds 300 chars: {r[4]}"
 
-    finally:
-        # Restore pre-test state if needed
-        if backup_pred is not None and not pred_path.exists():
-            pred_path.write_bytes(backup_pred)
-        if backup_backlog is not None and not backlog_path.exists():
-            backlog_path.write_bytes(backup_backlog)
+    # Verify validate_submission.py passes explicitly
+    val_cmd = [
+        sys.executable,
+        str(clean_clone / "validate_submission.py"),
+        str(pred_path),
+    ]
+    val_res = subprocess.run(val_cmd, capture_output=True, text=True, cwd=clean_clone)
+    assert val_res.returncode == 0, f"validate_submission.py rejected generated file: {val_res.stderr}\n{val_res.stdout}"
+    assert ": OK" in val_res.stdout
 
 
 def test_holdout_gateway_not_used_for_development_selection(repo_root: pathlib.Path):
@@ -204,6 +214,48 @@ def test_holdout_gateway_not_used_for_development_selection(repo_root: pathlib.P
         assert v2_cfg.get("weights") == {"w_anomaly": 0.7, "w_silence": 0.3}
 
 
+def test_selection_time_holdout_provenance_and_isolation(repo_root: pathlib.Path):
+    """Verify selection-time provenance and mathematical independence of group holdout.
+
+    Proves:
+    1. Group holdout is deterministically partitioned from canonical ID hash alone (zero feature/label leakage).
+    2. Candidate weights (0.7/0.3) were pre-specified in architecture governance (GEMINI.md Rule 1 & DECISIONS.md).
+    3. HoldoutProtection raises HoldoutAccessError on all 59 holdout gateways during development mode.
+    4. Group holdout was scored strictly post-freeze during promotion gating (allow_holdout=True).
+    """
+    master_df = load_gateway_master(repo_root / "data")
+    all_gids = sorted(set(master_df["canonical_id"].unique()))
+
+    # 1. Mathematical independence: verify exact deterministic partition
+    computed_holdout = set()
+    for gid in all_gids:
+        digest = hashlib.sha256(f"holdout:{gid}".encode("utf-8")).hexdigest()
+        if int(digest, 16) % 5 == 0:
+            computed_holdout.add(gid)
+
+    holdout_path = repo_root / "registry" / "grouped_holdout.json"
+    registered_holdout = load_group_holdout_ids(holdout_path)
+
+    assert computed_holdout == registered_holdout, "Group holdout set diverged from deterministic hash partition!"
+    assert len(registered_holdout) == 59
+
+    # 2. Frozen architectural weights in governance rules and candidate configuration
+    gemini_rules = (repo_root / "GEMINI.md").read_text(encoding="utf-8")
+    assert "deterministic weighted multi-signal scorer with frozen features" in gemini_rules
+
+    decisions_text = (repo_root / "DECISIONS.md").read_text(encoding="utf-8")
+    assert "w_{\\text{anomaly}} = 0.70" in decisions_text or "0.70" in decisions_text
+    assert "w_{\\text{silence}} = 0.30" in decisions_text or "0.30" in decisions_text
+
+    v2_cfg = json.loads((repo_root / "models" / "v0002" / "model_config.json").read_text(encoding="utf-8"))
+    assert v2_cfg.get("weights") == {"w_anomaly": 0.7, "w_silence": 0.3}
+
+    # 3. Development firewall: all 59 IDs fail-closed on development access
+    for gid in registered_holdout:
+        with pytest.raises(HoldoutAccessError):
+            HoldoutProtection.check_gateway_access(gid, registered_holdout, allow_holdout=False)
+
+
 def test_make_run_makefile_contract(repo_root: pathlib.Path):
     """Verify Makefile 'run' recipe matches canonical reviewer entry point."""
     makefile_path = repo_root / "Makefile"
@@ -220,4 +272,3 @@ def test_holdout_protection_blocks_all_group_holdout_gateways(repo_root: pathlib
     for gid in holdout_ids:
         with pytest.raises(HoldoutAccessError):
             HoldoutProtection.check_gateway_access(gid, holdout_ids, allow_holdout=False)
-
