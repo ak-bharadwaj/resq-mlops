@@ -46,3 +46,21 @@ Written for the Operations Manager and Engineering Leadership.
   - **Grouped Holdout Isolation**: Canonical `GROUP_HOLDOUT_IDS` (59 gateways) are frozen deterministically into `registry/grouped_holdout.json` before candidate selection and strictly barred from candidate development/training via `HoldoutProtection` (Rule 8).
   - **Zero Production Mutation**: Candidate materialization (`train_candidate`) produces immutable package `models/v0002/` and training log `runs/training/train_v0002.json`, leaving `registry/active.json` byte-for-byte untouched (`v0001` remains active). Promotion is strictly deferred to the multi-window evidence gate in Task 15.
 
+## 8. Multi-Window Evidence Gate & Holdout Rejection Protection (`v0002` Decision)
+- **Chosen**: Strict multi-window rolling evaluation (Nov, Dec, Jan holdouts = 13 Mondays) and isolated grouped holdout (`GROUP_HOLDOUT_IDS` = 59 gateways) with four-condition deterministic promotion policy:
+  1. Coverage $\ge 0.90$ (`REJECT_COVERAGE`)
+  2. Aggregate missed broken gateway weeks $\ge 10.0\%$ lower than active (`REJECT_NOT_BETTER`)
+  3. Zero individual window regression (`REJECT_WINDOW_REGRESSION`)
+  4. Grouped holdout directional agreement (`REJECT_GROUPED_DISAGREEMENT`)
+  Decision outcome for candidate `v0002`: **REJECT** (`REJECT_GROUPED_DISAGREEMENT`). Active model strictly remains `v0001`.
+- **Alternative Rejected**: Promoting candidate `v0002` based solely on its aggregate temporal gain, ignoring holdout regression, relaxing the promotion threshold, or mutating feature weights post-holdout.
+- **Rationale**:
+  - **Empirical Gate Results**:
+    - **Temporal Windows (Development Fleet)**: Active missed 71 vs Candidate missed 60 broken weeks (-11 missed weeks = 15.49% aggregate cost reduction, clearing the 10.0% threshold). Individual windows: Nov 32 -> 26 (+18.75%), Dec 24 -> 20 (+16.67%), Jan 15 -> 14 (+6.67%), with zero window regressions.
+    - **Grouped Holdout (59 Unseen Gateways)**: Active missed 17 vs Candidate missed 18 broken weeks (+1 regression on unseen hardware).
+    - **Policy Verdict**: Candidate fails condition 4 (`REJECT_GROUPED_DISAGREEMENT`).
+  - **Operations-Manager Economic Defense**:
+    - **Dispatch Economics**: Technician visit allocation is €45,600.00 fixed (120 visits × €380, constant across all valid submissions). Missed-fault penalties differ: active €88,200 vs candidate €81,600 (a €6,600 penalty savings on historical development data).
+    - **Lifecycle Safety**: Despite attractive historical backtest numbers, the candidate fails to generalize to unseen hardware in the fleet holdout. Promoting `v0002` would risk regressing service quality on unobserved regional hardware. The gate operated exactly as designed: rejecting unproven candidates and safeguarding production.
+  - **Production Invariant**: `registry/active.json` is byte-for-byte unchanged; `v0001` remains active in production and is served for all submission runs.
+

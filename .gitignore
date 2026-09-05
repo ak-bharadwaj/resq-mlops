@@ -36,6 +36,10 @@ runs/training/*
 !runs/training/.gitkeep
 runs/prediction/*
 !runs/prediction/.gitkeep
+runs/evaluation/*
+!runs/evaluation/.gitkeep
+runs/promotion/*
+!runs/promotion/.gitkeep
 scratch/
 *.log
 brief_text.txt
