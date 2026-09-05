@@ -244,8 +244,8 @@ def test_telemetry_loader_canonicalization(tmp_path: pathlib.Path):
     tel_dir.mkdir(parents=True)
 
     raw_data = pd.DataFrame([
-        {"gateway_id": "06:39:ea:56:02:c1", "ts_utc": "2026-01-10T12:00:00Z", "offline_duration_sec": 10.0},
-        {"gateway_id": "0639EA5602C2", "ts_utc": "2026-01-10T12:00:00Z", "offline_duration_sec": 20.0},
+        {"gateway_id": "06:39:ea:56:02:c1", "ts_utc": "2026-01-10T12:00:00Z", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
+        {"gateway_id": "0639EA5602C2", "ts_utc": "2026-01-10T12:00:00Z", "offline_duration_sec": 20.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
     ])
     raw_data.to_parquet(tel_dir / "part-0.parquet")
 
@@ -259,7 +259,7 @@ def test_telemetry_loader_canonicalization(tmp_path: pathlib.Path):
 
     # Reject malformed raw ID in telemetry
     bad_data = pd.DataFrame([
-        {"gateway_id": "NOT_AN_ID", "ts_utc": "2026-01-10T12:00:00Z", "offline_duration_sec": 10.0}
+        {"gateway_id": "NOT_AN_ID", "ts_utc": "2026-01-10T12:00:00Z", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0}
     ])
     bad_data.to_parquet(tel_dir / "part-0.parquet")
     with pytest.raises(ValueError):
@@ -291,7 +291,7 @@ def test_downstream_join_on_canonical_representation(tmp_path: pathlib.Path):
     tel_dir = tmp_path / "telemetry"
     tel_dir.mkdir(parents=True)
     tel_df = pd.DataFrame([
-        {"gateway_id": "0639ea5602c1", "ts_utc": "2026-01-15T12:00:00Z", "offline_duration_sec": 10.0}
+        {"gateway_id": "0639ea5602c1", "ts_utc": "2026-01-15T12:00:00Z", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0}
     ])
     tel_df.to_parquet(tel_dir / "part-0.parquet")
 

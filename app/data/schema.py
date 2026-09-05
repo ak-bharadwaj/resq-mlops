@@ -52,54 +52,129 @@ class TelemetrySchemaContract(BaseModel):
             data = json.load(f)
         return cls(**data)
 
-    def validate_dataframe(self, df: pd.DataFrame) -> Tuple[bool, List[str]]:
-        """Validate incoming DataFrame against schema contract.
+    @classmethod
+    def load_active_schema(
+        cls,
+        models_dir: pathlib.Path = pathlib.Path("models"),
+        registry_path: pathlib.Path = pathlib.Path("registry/active.json"),
+    ) -> "TelemetrySchemaContract":
+        """Load authoritative model schema contract based on registry/active.json.
+
+        Rule: models/<version>/schema.json is authoritative once model artifacts exist.
+        monitoring/schema_baseline.json must never override it.
+        """
+        if registry_path.exists():
+            try:
+                with open(registry_path, encoding="utf-8") as f:
+                    active = json.load(f)
+                active_version = active.get("production_version", "v0001")
+                schema_path = models_dir / active_version / "schema.json"
+                if schema_path.exists():
+                    return cls.load_from_model(models_dir / active_version)
+            except Exception:
+                pass
+        return cls()
+
+    def validate_dataframe(self, df: pd.DataFrame, projected: bool = False) -> Tuple[bool, List[str]]:
+        """Validate incoming DataFrame against structural schema contract.
 
         Checks:
-        1. All required columns exist.
-        2. Timestamp column is present, parseable, and timezone-aware UTC.
-        3. Column dtypes match expected types where verifiable.
+        1. All required columns exist (for full load; or base columns if projected).
+        2. Non-null identifiers and timestamps.
+        3. Timestamp column is present, parseable, strictly timezone-aware UTC (rejecting naive).
+        4. Hourly grain validation (minutes and seconds must be 00:00).
+        5. Column dtypes match expected types where verifiable.
+        6. Numerical range checks for declared fields (non-negative counters/duration).
+        7. Gateway ID validity.
         """
         errors: List[str] = []
 
         # 1. Required columns presence
-        missing_cols = [c for c in self.required_columns if c not in df.columns]
+        check_cols = ["gateway_id", "ts_utc"] if projected else self.required_columns
+        missing_cols = [c for c in check_cols if c not in df.columns]
         if missing_cols:
             errors.append(f"Missing required column(s): {missing_cols}")
 
-        # If columns missing, cannot perform deeper checks reliably
         if errors:
             return False, errors
 
-        # 2. Timestamp column validation
+        # 2. Non-null checks for mandatory fields
+        if "gateway_id" in df.columns and df["gateway_id"].isna().any():
+            errors.append("gateway_id contains null or missing values")
+
         ts_col = self.timestamp_column
         if ts_col in df.columns:
             ts_series = df[ts_col]
+            if ts_series.isna().any():
+                errors.append(f"{ts_col} contains null or missing timestamp values")
+
+            # 3. Strict UTC timestamp parsing and naive timezone rejection
+            parsed_utc_ts: Optional[pd.Series] = None
             if not pd.api.types.is_datetime64_any_dtype(ts_series):
                 try:
-                    ts_converted = pd.to_datetime(ts_series, utc=True, format="ISO8601")
-                    if ts_converted.isna().any() and not ts_series.isna().all():
-                        errors.append(f"{ts_col} contains unparseable timestamp values")
+                    # Parse without forcing utc=True to catch tz-naive strings
+                    ts_check = pd.to_datetime(ts_series, format="ISO8601")
+                    if ts_check.dt.tz is None:
+                        errors.append(
+                            f"{ts_col} contains naive timestamp(s) lacking UTC timezone indicator. "
+                            "Naive timestamps must not be silently interpreted as UTC."
+                        )
+                    else:
+                        tz_str = str(ts_check.dt.tz)
+                        if tz_str not in ("UTC", "datetime.timezone.utc"):
+                            errors.append(f"{ts_col} must be UTC timezone, got {tz_str}")
+                        else:
+                            parsed_utc_ts = ts_check
                 except Exception as ex:
                     errors.append(f"{ts_col} failed UTC datetime parsing: {ex}")
             else:
-                # Check timezone is UTC
+                # Check timezone of datetime64 Series
                 tz_str = str(getattr(ts_series.dt, "tz", None))
                 if tz_str not in ("UTC", "datetime.timezone.utc"):
-                    errors.append(f"{ts_col} must be timezone-aware UTC, got {ts_series.dt.tz}")
+                    errors.append(
+                        f"{ts_col} must be timezone-aware UTC. Got naive or non-UTC datetime: {ts_series.dt.tz}. "
+                        "Naive timestamps must not be silently interpreted as UTC."
+                    )
+                else:
+                    parsed_utc_ts = ts_series
 
-        # 3. Numeric dtypes validation
+            # 4. Hourly telemetry grain validation (minutes == 0, seconds == 0)
+            if self.time_grain == "hourly" and parsed_utc_ts is not None and len(df) > 0:
+                try:
+                    non_hourly = (parsed_utc_ts.dt.minute != 0) | (parsed_utc_ts.dt.second != 0)
+                    if non_hourly.any():
+                        errors.append(f"{ts_col} contains non-hourly grain timestamps (minutes/seconds non-zero)")
+                except Exception:
+                    pass
+
+        # 5. Numeric dtypes and range validation
         for col, expected_dtype in self.dtypes.items():
             if col in df.columns and col != ts_col:
-                if expected_dtype in ("float64", "int64", "numeric"):
+                if expected_dtype in ("float64", "int64", "numeric", "float32", "int32"):
                     if not pd.api.types.is_numeric_dtype(df[col]):
                         errors.append(f"Column '{col}' expected numeric dtype, got {df[col].dtype}")
 
+        # Range checks for declared telemetry fields
+        if "offline_duration_sec" in df.columns:
+            off = df["offline_duration_sec"]
+            if (off < 0.0).any():
+                errors.append("offline_duration_sec must be non-negative (>= 0.0)")
+
+        if "disconnection_cnt" in df.columns:
+            disc = df["disconnection_cnt"]
+            if (disc < 0.0).any():
+                errors.append("disconnection_cnt must be non-negative (>= 0.0)")
+
+        if "reboot_cnt" in df.columns:
+            reb = df["reboot_cnt"]
+            if (reb < 0.0).any():
+                errors.append("reboot_cnt must be non-negative (>= 0.0)")
+
         return len(errors) == 0, errors
 
-    def validate_or_raise(self, df: pd.DataFrame) -> None:
+    def validate_or_raise(self, df: pd.DataFrame, projected: bool = False) -> None:
         """Validate DataFrame and raise SchemaValidationError if invalid."""
-        valid, errors = self.validate_dataframe(df)
+        valid, errors = self.validate_dataframe(df, projected=projected)
         if not valid:
             raise SchemaValidationError(f"Telemetry schema validation failed: {errors}")
 

@@ -316,10 +316,13 @@ def get_gateway_eligibility(
 
     # Parse installed_on and decommissioned_on as naive date midnight Timestamps
     installed_ts = pd.to_datetime(df["installed_on"]).dt.tz_localize(None).dt.floor("D")
-    decom_ts = pd.to_datetime(df["decommissioned_on"]).dt.tz_localize(None).dt.floor("D")
+    if "decommissioned_on" in df.columns:
+        decom_ts = pd.to_datetime(df["decommissioned_on"]).dt.tz_localize(None).dt.floor("D")
+        not_decommissioned = decom_ts.isna() | (decom_ts > monday_ts)
+    else:
+        not_decommissioned = pd.Series(True, index=df.index)
 
     installed_eligible = installed_ts <= monday_ts
-    not_decommissioned = decom_ts.isna() | (decom_ts > monday_ts)
     is_eligible = installed_eligible & not_decommissioned
 
     df["is_eligible"] = is_eligible.astype(bool)
@@ -420,9 +423,9 @@ def load_telemetry_window(
     # Read parquet partitions
     df = pd.read_parquet(telemetry_path, columns=cols)
 
-    # Enforce telemetry schema contract on incoming raw DataFrame
-    contract = TelemetrySchemaContract()
-    contract.validate_or_raise(df)
+    # Enforce authoritative model telemetry schema contract on incoming raw DataFrame
+    contract = TelemetrySchemaContract.load_active_schema()
+    contract.validate_or_raise(df, projected=(columns is not None))
 
     df["ts"] = pd.to_datetime(df["ts_utc"], utc=True, format="ISO8601")
 

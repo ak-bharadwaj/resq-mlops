@@ -38,11 +38,11 @@ def test_exact_boundary_cutoff_exclusion(tmp_path: pathlib.Path):
 
     rows = [
         # Strictly before cutoff (valid in window)
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-01T23:59:59Z", "offline_duration_sec": 10.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-01T23:00:00Z", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # Exact Monday 00:00:00 UTC cutoff -> MUST BE EXCLUDED (< cutoff_utc)
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T00:00:00Z", "offline_duration_sec": 20.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T00:00:00Z", "offline_duration_sec": 20.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # Strictly after cutoff -> MUST BE EXCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T00:00:01Z", "offline_duration_sec": 30.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T01:00:00Z", "offline_duration_sec": 30.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
     ]
     pd.DataFrame(rows).to_parquet(tel_dir / "part-0.parquet")
 
@@ -62,13 +62,13 @@ def test_start_window_bound(tmp_path: pathlib.Path):
 
     rows = [
         # Strictly before start_utc -> EXCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-04T23:59:59Z", "val": 1.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-04T23:00:00Z", "offline_duration_sec": 1.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # Exact start_utc bound -> INCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-05T00:00:00Z", "val": 2.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-05T00:00:00Z", "offline_duration_sec": 2.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # Strictly inside window -> INCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-15T12:00:00Z", "val": 3.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-15T12:00:00Z", "offline_duration_sec": 3.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # Exact cutoff_utc -> EXCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-26T00:00:00Z", "val": 4.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-26T00:00:00Z", "offline_duration_sec": 4.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
     ]
     pd.DataFrame(rows).to_parquet(tel_dir / "part-0.parquet")
 
@@ -78,7 +78,7 @@ def test_start_window_bound(tmp_path: pathlib.Path):
     loaded = load_telemetry_window(tmp_path, cutoff_utc=cutoff_utc, start_utc=start_utc)
 
     assert len(loaded) == 2
-    assert set(loaded["val"]) == {2.0, 3.0}
+    assert set(loaded["offline_duration_sec"]) == {2.0, 3.0}
 
 
 def test_real_parquet_partition_ingestion():

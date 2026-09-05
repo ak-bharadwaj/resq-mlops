@@ -14,15 +14,15 @@ def test_production_load_telemetry_window_utc_boundary(tmp_path: pathlib.Path):
     # Telemetry test rows across boundary
     raw_rows = [
         # 1. Strictly before cutoff (valid in window)
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-01T23:59:59Z", "offline_duration_sec": 10.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-01T23:00:00Z", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # 2. Exact Monday 00:00:00 UTC cutoff -> MUST BE EXCLUDED (< cutoff)
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T00:00:00Z", "offline_duration_sec": 20.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T00:00:00Z", "offline_duration_sec": 20.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # 3. Strictly after cutoff -> MUST BE EXCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T01:00:00Z", "offline_duration_sec": 30.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-02-02T01:00:00Z", "offline_duration_sec": 30.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # 4. Before start window -> MUST BE EXCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-04T23:59:59Z", "offline_duration_sec": 40.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-04T23:00:00Z", "offline_duration_sec": 40.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # 5. Inside window -> MUST BE INCLUDED
-        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-15T12:00:00Z", "offline_duration_sec": 50.0},
+        {"gateway_id": "0639EA560201", "ts_utc": "2026-01-15T12:00:00Z", "offline_duration_sec": 50.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
     ]
     sample_df = pd.DataFrame(raw_rows)
     sample_df.to_parquet(tel_dir / "part-0.parquet")

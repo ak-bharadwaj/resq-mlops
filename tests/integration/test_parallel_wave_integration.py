@@ -94,11 +94,11 @@ def test_parallel_wave_synthetic_e2e_pipeline(tmp_path: pathlib.Path):
     tel_dir.mkdir(parents=True)
     rows = [
         # In window for C1
-        {"gateway_id": "06:39:ea:56:02:c1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 0.0},
+        {"gateway_id": "06:39:ea:56:02:c1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 0.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # Exact cutoff for C1 -> MUST BE FILTERED OUT
-        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-02T00:00:00Z", "offline_duration_sec": 60.0},
+        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-02T00:00:00Z", "offline_duration_sec": 60.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
         # In window for C2
-        {"gateway_id": "0639EA5602C2", "ts_utc": "2026-02-01T18:00:00Z", "offline_duration_sec": 0.0},
+        {"gateway_id": "0639EA5602C2", "ts_utc": "2026-02-01T18:00:00Z", "offline_duration_sec": 0.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
     ]
     pd.DataFrame(rows).to_parquet(tel_dir / "part-0.parquet")
 

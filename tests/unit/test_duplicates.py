@@ -346,8 +346,8 @@ def test_connected_pipeline_injected_equivalent_duplicates_resolve(tmp_path: pat
     tel_dir = tmp_path / "telemetry"
     tel_dir.mkdir(parents=True)
     rows = [
-        {"gateway_id": "06:39:ea:56:02:c1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 10.0},
-        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-01 12:00:00+00:00", "offline_duration_sec": 10.0},
+        {"gateway_id": "06:39:ea:56:02:c1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
+        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-01 12:00:00+00:00", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
     ]
     pd.DataFrame(rows).to_parquet(tel_dir / "part-0.parquet")
 
@@ -401,8 +401,8 @@ def test_connected_pipeline_injected_conflict_in_telemetry_blocks_pipeline(tmp_p
     tel_dir = tmp_path / "telemetry"
     tel_dir.mkdir(parents=True)
     rows = [
-        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 10.0},
-        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 99.0},
+        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 10.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
+        {"gateway_id": "0639EA5602C1", "ts_utc": "2026-02-01T12:00:00Z", "offline_duration_sec": 99.0, "disconnection_cnt": 0.0, "reboot_cnt": 0.0},
     ]
     pd.DataFrame(rows).to_parquet(tel_dir / "part-0.parquet")
     cutoff_utc = dt.datetime(2026, 2, 2, 0, 0, 0, tzinfo=dt.timezone.utc)

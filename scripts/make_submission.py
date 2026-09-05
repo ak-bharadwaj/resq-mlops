@@ -33,6 +33,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Task 11: Validate data directory exists
+    if not args.data.exists() or not args.data.is_dir():
+        print(f"ERROR: Specified data directory does not exist: {args.data}", file=sys.stderr)
+        sys.exit(1)
+
     # Propagate args.data into actual data loader
     master_df = load_gateway_master(args.data)
     print(f"[Phase 1 Foundation] Loaded {len(master_df)} master gateways from {args.data}")
