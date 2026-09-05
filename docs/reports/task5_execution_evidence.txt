@@ -2,7 +2,7 @@
                     TASK 5 EXECUTION EVIDENCE ARTIFACT                         
 ================================================================================
 Execution Date/Time (UTC) : 2026-09-05T09:09:00+00:00
-Git Implementation Commit : 6ca0ab05007af1d1fbce4bd980757d59ce05fbef
+Git Implementation Commit : 6ca0ab0945f23a91748128c488e992f0784fa94d
 Git Branch                : main
 
 Python Version            : 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
@@ -162,7 +162,7 @@ tests/unit/test_telemetry_firewall.py::test_load_telemetry_window_enforces_schem
 tests/unit/test_telemetry_firewall.py::test_telemetry_schema_contract_validation PASSED [ 98%]
 tests/unit/test_utc_cutoff.py::test_production_load_telemetry_window_utc_boundary PASSED [100%]
 
-============================= 97 passed in 24.62s =============================
+============================= 97 passed in 24.62s ==============================
 
 --------------------------------------------------------------------------------
 COMMAND 4: python scripts/predict.py --data ./data (E2E Connectivity CLI)
@@ -178,7 +178,7 @@ Week: 2026-02-02 | Eligible gateways: 290 of 332
 ================================================================================
 Requirement                                Status  Details / Assertion
 --------------------------------------------------------------------------------
-1. Explicit Code Commit Linkage            VERIFIED  Bound to 6ca0ab05007af1d1fbce4bd980757d59ce05fbef
+1. Explicit Code Commit Linkage            VERIFIED  Bound to 6ca0ab0945f23a91748128c488e992f0784fa94d
 2. Authoritative Eligibility Rule          VERIFIED  installed_on <= Monday AND (decommissioned_on is null OR decommissioned_on > Monday)
 3. Decommissioned ON Monday Ineligible     VERIFIED  Boundary test: decommissioned_on == Monday returns is_eligible = False
 4. Mandatory Pipeline Location             VERIFIED  Eligibility runs before feature construction; telemetry presence/absence NEVER alters eligibility
@@ -193,7 +193,7 @@ Requirement                                Status  Details / Assertion
 ================================================================================
                     TEST SUITE & CONNECTIVITY EXECUTION SUMMARY                 
 ================================================================================
-Implementation Commit  : 6ca0ab05007af1d1fbce4bd980757d59ce05fbef
+Implementation Commit  : 6ca0ab0945f23a91748128c488e992f0784fa94d
 Task 5 Dedicated Tests : 5 passed, 0 failed, 0 skipped
 Full Regression Suite  : 97 passed, 0 failed, 0 skipped
 E2E CLI                : PASS (python scripts/predict.py --data ./data executed with exit code 0)
