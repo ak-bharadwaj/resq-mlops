@@ -1,0 +1,44 @@
+# Data directory (P0 constraint - strictly prohibited from repository commit)
+data/
+*.parquet
+*.xlsx
+*.zip
+
+# Keep test fixtures and templates if needed, but no raw data
+!tests/fixtures/**
+
+# Python
+__pycache__/
+*.py[cod]
+*\.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Temporary runs and scratch files
+runs/training/*
+!runs/training/.gitkeep
+runs/prediction/*
+!runs/prediction/.gitkeep
+scratch/
+*.log
+brief_text.txt
+data_dict_text.txt
+brief.pdf
+data_dict.pdf

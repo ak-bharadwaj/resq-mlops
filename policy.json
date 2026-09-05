@@ -1,0 +1,21 @@
+{
+  "governance_version": "v1",
+  "promotion_rule": {
+    "evaluation_mode": "cost_backtest",
+    "cost_differential_threshold_percent": 10.0,
+    "missed_broken_gateway_week_cost_eur": 600.0,
+    "fixed_visit_cost_eur": 45600.0,
+    "allow_individual_window_regression": false,
+    "grouped_holdout_directional_agreement_required": true
+  },
+  "coverage_contract": {
+    "minimum_coverage_ratio": 0.9,
+    "common_valid_population_enforced": true
+  },
+  "retraining_governance": {
+    "degradation_threshold": 1.1,
+    "auto_retrain": false,
+    "action_on_drift": "authorize_candidate_creation_only",
+    "zero_reference_rule": "authorize_only_when_active_greater_than_zero"
+  }
+}

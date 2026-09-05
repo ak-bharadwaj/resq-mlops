@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resq-mlops"
+version = "0.1.0"
+description = "LPDG Innovation Hub Selection Challenge 2026 - MLOps Architecture"
+authors = [{name = "Akshith Bharadwaj"}]
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.2.0",
+    "numpy>=1.26.0",
+    "pyarrow>=14.0.0",
+    "joblib>=1.3.0",
+    "openpyxl>=3.1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

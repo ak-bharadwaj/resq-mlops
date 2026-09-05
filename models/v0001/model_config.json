@@ -1,0 +1,12 @@
+{
+  "model_version": "v0001",
+  "baseline_days": 28,
+  "recent_days": 7,
+  "sigma": 3.0,
+  "metrics": [
+    "offline_duration_sec",
+    "disconnection_cnt",
+    "reboot_cnt"
+  ],
+  "visits_per_week": 15
+}

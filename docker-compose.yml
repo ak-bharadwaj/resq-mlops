@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  mlops:
+    build: .
+    volumes:
+      - ./data:/workspace/data:ro
+      - ./runs:/workspace/runs
+    command: make run

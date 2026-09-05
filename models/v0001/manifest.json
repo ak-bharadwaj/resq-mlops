@@ -1,0 +1,16 @@
+{
+  "model_version": "v0001",
+  "model_type": "baseline_3sigma_anomaly",
+  "feature_version": "baseline-v1",
+  "schema_version": "telemetry-v1",
+  "artifact_hash": "sha256:baseline_3sigma_frozen_constants",
+  "evaluation_mode": "cost_backtest",
+  "evidence_quality": "baseline",
+  "evaluation_scope": "precision_biased_sample",
+  "training_period": [
+    "2025-08-01",
+    "2026-01-31"
+  ],
+  "feature_selection_frozen_at": "2026-09-05T00:00:00Z",
+  "software_lock_version": "requirements.lock"
+}

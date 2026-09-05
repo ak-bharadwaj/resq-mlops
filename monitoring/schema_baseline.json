@@ -1,0 +1,18 @@
+{
+  "required_columns": [
+    "gateway_id",
+    "ts_utc",
+    "offline_duration_sec",
+    "disconnection_cnt",
+    "reboot_cnt"
+  ],
+  "dtypes": {
+    "gateway_id": "string",
+    "ts_utc": "datetime64[ns, UTC]",
+    "offline_duration_sec": "float64",
+    "disconnection_cnt": "float64",
+    "reboot_cnt": "float64"
+  },
+  "time_grain": "hourly",
+  "timestamp_column": "ts_utc"
+}
