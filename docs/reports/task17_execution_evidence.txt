@@ -1,0 +1,152 @@
+================================================================================
+RESQ-MLOPS TASK 17: FINAL STANDING-GAP CLOSURE EXECUTION EVIDENCE
+================================================================================
+Timestamp (UTC): 2026-09-05T16:29:25.259858+00:00
+Implementation Commit SHA: 7cbfe322d6b27b1aac65415fd4f58db254ec3078
+Parent Commit SHA:         3b0dfd999a2f56c3e76c74d3203dac93160c46af
+Branch:                    main
+Repository:                https://github.com/ak-bharadwaj/resq-mlops.git (PRIVATE)
+Operating System:          Windows 11 / win32
+Python Interpreter:        C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe (Python 3.14.5)
+Framework:                 pytest 9.0.3
+
+================================================================================
+EXECUTIVE SUMMARY: FINAL STANDING-GAP CLOSURE
+================================================================================
+All four standing audit areas identified prior to final freeze have been
+addressed, validated, and programmatically tested:
+
+1. Scope 17.1 (AI-USAGE.md):
+   - Added authentic, unembellished case study documenting a real AI code generation
+     flaw encountered during Task 15 candidate evaluation.
+   - Assistant proposed scalar cardinality approximation min(len(act), len(cand)).
+   - Detected during strict architectural review against v25 Section 8.
+   - Corrected to exact set intersection active_valid_gw_weeks & candidate_valid_gw_weeks.
+   - Architecturally critical to prevent disjoint-coverage candidate promotion.
+
+2. Scope 17.2 (scripts/predict.py missing telemetry fail-closed):
+   - Fixed silent notice / exit 0 behavior when telemetry partitions are missing.
+   - Missing telemetry now emits explicit error to stderr and exits with code 1.
+   - Verified that no false predictions.csv or backlog_report.json artifacts are produced.
+   - Covered by dedicated unit test test_missing_telemetry_fails_nonzero.
+
+3. Scope 17.3 (Clean-environment smoke test for make run):
+   - End-to-end smoke test test_clean_environment_make_run executes the canonical
+     reviewer command in an environment purged of pre-existing prediction artifacts.
+   - Confirms generation of exactly 120 prediction rows (15/week x 8 weeks).
+   - Confirms strict 6-decimal formatting and reason character length <= 300.
+   - Directly executes validate_submission.py and confirms exit code 0 (: OK).
+
+4. Scope 17.4 (0AA18F330F59 holdout contamination audit):
+   - Confirmed 0AA18F330F59 is member of frozen group holdout (59 gateways total).
+   - Confirmed HoldoutProtection.check_gateway_access blocks access with HoldoutAccessError.
+   - Confirmed 0AA18F330F59 is excluded from candidate training fleet (273 dev gateways).
+   - Confirmed 0AA18F330F59 is excluded from dev_gids across all 13 rolling window Mondays.
+   - Confirmed 0AA18F330F59 was NOT used as a sanity case in test_label_audit.py.
+   - Confirmed candidate model weights are frozen v25 specification, not tuned.
+   - Programmatic boundary guard test_holdout_gateway_not_used_for_development_selection passes.
+
+================================================================================
+COMMAND 1: DEDICATED TASK 17 TEST SUITE EXECUTION
+================================================================================
+$ python -m pytest tests/unit/test_standing_gaps.py -v
+
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 5 items
+
+tests/unit/test_standing_gaps.py::test_missing_telemetry_fails_nonzero PASSED [ 20%]
+tests/unit/test_standing_gaps.py::test_clean_environment_make_run PASSED [ 40%]
+tests/unit/test_standing_gaps.py::test_holdout_gateway_not_used_for_development_selection PASSED [ 60%]
+tests/unit/test_standing_gaps.py::test_make_run_makefile_contract PASSED [ 80%]
+tests/unit/test_standing_gaps.py::test_holdout_protection_blocks_all_group_holdout_gateways PASSED [100%]
+
+============================= 5 passed in 57.04s ==============================
+Exit code: 0
+
+================================================================================
+COMMAND 2: REVIEWER CANONICAL WORKFLOW (make run / make_submission.py)
+================================================================================
+$ python scripts/make_submission.py --data ./data
+
+Wrote predictions.csv - 120 rows over 8 weeks
+Submission validated successfully by validate_submission.py: PASS
+Exit code: 0
+
+================================================================================
+COMMAND 3: OFFICIAL SUBMISSION VALIDATOR INVOCATION
+================================================================================
+$ python validate_submission.py predictions.csv
+
+predictions.csv: OK
+  15 ranked gateways for each of 8 weeks, 2026-02-02 to 2026-03-23
+Exit code: 0
+
+================================================================================
+COMMAND 4: MISSING TELEMETRY DIRECT CLI EXECUTION CHECK
+================================================================================
+$ python scripts/predict.py --data <directory_without_telemetry>
+
+Active model: v0001
+Data source: C:\Users\dorni\AppData\Local\Temp\tmp_b_jibta
+Week: 2026-02-02 | Eligible gateways: 1 of 1
+ERROR: No telemetry partitions found in data directory: C:\Users\dorni\AppData\Local\Temp\tmp_b_jibta; failing closed.
+Exit code: 1 (NON-ZERO / FAIL-CLOSED VERIFIED)
+
+================================================================================
+COMMAND 5: PROGRAMMATIC HOLDOUT CONTAMINATION AUDIT (0AA18F330F59)
+================================================================================
+Target Gateway: 0AA18F330F59
+Authoritative Registry: registry/grouped_holdout.json (59 gateways)
+
+Audit Assertions:
+1. Target in authoritative holdout set: True
+2. HoldoutProtection.check_gateway_access(allow_holdout=False): BLOCKED (HoldoutAccessError raised)
+3. Target in candidate training dev_gateways: False (273 development gateways, strictly disjoint)
+4. Target in rolling evaluation window dev_gids: False (0 of 13 Mondays leaked)
+5. Target in historical label audit case studies: False (Cases tested: 0E61D34F9993, 0ED0849FD6D8, 0A68A2032450)
+6. Candidate v0002 weights: {'w_anomaly': 0.7, 'w_silence': 0.3} (frozen v25 specification, 0 parameters fit)
+Status: PASS (NO CONTAMINATION FOUND)
+
+================================================================================
+COMMAND 6: AI-USAGE.MD CONCRETE CASE STUDY VERIFICATION
+================================================================================
+Target File: AI-USAGE.md
+Required Section Headers Verified:
+- [x] '### AI suggested:'
+- [x] '### I caught it because:'
+- [x] '### I corrected it by:'
+- [x] '### Why the correction mattered:'
+Content: Detailed documentation of Task 15 common evaluation population coverage
+defect and true mathematical set intersection fix.
+Status: PASS
+
+================================================================================
+COMMAND 7: FULL REGRESSION TEST SUITE EXECUTION
+================================================================================
+$ python -m pytest tests/ -q
+
+........................................................................ [ 33%]
+........................................................................ [ 66%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+218 passed in 556.70s (0:09:16)
+Exit code: 0
+
+================================================================================
+TASK 17 FINAL AUDIT COMPLIANCE MATRIX
+================================================================================
+Item                                                 Status  Evidence
+--------------------------------------------------------------------------------
+17.1 AI-USAGE.md Concrete Case Study                 PASS    Section added with all 4 required headers
+17.2 predict.py missing telemetry exits non-zero     PASS    Exit code 1, error on stderr, no artifacts
+17.3 Clean-environment make run smoke test           PASS    test_clean_environment_make_run (120 rows, : OK)
+17.4 0AA18F330F59 holdout contamination audit        PASS    test_holdout_gateway_not_used_for_development_selection
+Regression Suite Integrity (218 tests)               PASS    218 passed in 556.70s, 0 failures, 0 skips
+Submission Validator Contract                        PASS    validate_submission.py returned 0 (: OK)
+================================================================================
