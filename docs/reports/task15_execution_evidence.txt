@@ -1,0 +1,146 @@
+================================================================================
+LPDG MLOPS TRACK F: TASK 15 EXECUTION EVIDENCE
+================================================================================
+
+Task: Task 15 - Evidence Gate (Multi-Window Evaluation & Promotion Policy)
+Execution Date (UTC): 2026-09-05T14:20:00Z
+Git Commit SHA: dca3028f727ac05e6dd3124ce57e936330250b5d
+Parent Commit SHA: 1e7dac8ccf5eb0060c29fb2d7a17353164e20f3b
+Python Version: 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
+Platform: win32
+Status: ALL VERIFICATIONS PASSED
+
+--------------------------------------------------------------------------------
+1. COMMAND: python scripts/promote.py --candidate v0002
+Exit Code: 0
+STDOUT:
+Starting multi-window evaluation: candidate=v0002 vs active=v0001
+
+================================================================================
+PROMOTION GATE EVALUATION: v0002 vs v0001
+================================================================================
+Decision:     REJECT
+Reason Code:  REJECT_GROUPED_DISAGREEMENT
+Explanation:  Grouped holdout on unseen hardware disagreed with temporal backtest: candidate missed 18 broken weeks vs active 17 (+1 regression).
+Coverage:     100.00% (min required: 90.00%)
+
+--- Temporal Rolling Windows (Development Fleet) ---
+Window 1 (Nov 2025): active missed 32, candidate missed 26 | diff=+6 (+18.75%) | regressed=NO (OK)
+Window 2 (Dec 2025): active missed 24, candidate missed 20 | diff=+4 (+16.67%) | regressed=NO (OK)
+Window 3 (Jan 2026): active missed 15, candidate missed 14 | diff=+1 (+6.67%) | regressed=NO (OK)
+Aggregate Missed Broken Weeks: active 71, candidate 60
+Aggregate Improvement:         15.49% (differential: +11 weeks)
+
+--- Grouped Holdout (Unseen Hardware Fleet) ---
+Held-out Gateways: 59
+Holdout Missed:    active 17, candidate 18 | diff=-1 | agreement=DISAGREED (REGRESSION)
+
+--- Operations-Manager Economics ---
+Technician Dispatch Cost: €45,600.00 fixed (120 visits × €380, constant across valid models)
+Active Model Fault Cost:   €88,200.00 (€45,600 + 71 × €600)
+Candidate Fault Cost:      €81,600.00 (€45,600 + 60 × €600)
+Economic Penalty Delta:    €+6,600.00 (missed-fault penalty differential)
+================================================================================
+
+REJECTION ENFORCED: Candidate v0002 was REJECTED (REJECT_GROUPED_DISAGREEMENT).
+Production safety guard active: registry/active.json remains strictly on v0001.
+Promotion decision record written to: runs/promotion/promotion_decision_v0002.json
+
+--------------------------------------------------------------------------------
+2. COMMAND: python -m pytest tests/unit/test_evidence_gate.py -v
+Exit Code: 0
+STDOUT:
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0 -- C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 11 items
+
+tests/unit/test_evidence_gate.py::test_same_input_same_version_same_output PASSED [  9%]
+tests/unit/test_evidence_gate.py::test_candidate_worse_is_rejected PASSED [ 18%]
+tests/unit/test_evidence_gate.py::test_aggregate_10_percent_rule PASSED  [ 27%]
+tests/unit/test_evidence_gate.py::test_individual_window_no_regression PASSED [ 36%]
+tests/unit/test_evidence_gate.py::test_grouped_holdout_directional_agreement PASSED [ 45%]
+tests/unit/test_evidence_gate.py::test_common_population_coverage_contract PASSED [ 54%]
+tests/unit/test_evidence_gate.py::test_cost_delta_excludes_fixed_visit_cost PASSED [ 63%]
+tests/unit/test_evidence_gate.py::test_holdout_isolation_enforced_in_evaluation PASSED [ 72%]
+tests/unit/test_evidence_gate.py::test_production_pointer_unchanged_on_rejection PASSED [ 81%]
+tests/unit/test_evidence_gate.py::test_promotable_fixture_passes_and_promotes PASSED [ 90%]
+tests/unit/test_evidence_gate.py::test_real_candidate_v0002_rejection_audit PASSED [100%]
+
+======================= 11 passed in 134.37s (0:02:14) ========================
+
+--------------------------------------------------------------------------------
+3. COMMAND: python scripts/make_submission.py --data ./data; python validate_submission.py predictions.csv (make run)
+Exit Code: 0
+STDOUT:
+Wrote predictions.csv - 120 rows over 8 weeks
+Submission validated successfully by validate_submission.py: PASS
+predictions.csv: OK
+  15 ranked gateways for each of 8 weeks, 2026-02-02 to 2026-03-23
+
+--------------------------------------------------------------------------------
+4. COMMAND: python -m pytest tests/ -q (Full Regression Suite)
+Exit Code: 0
+STDOUT:
+........................................................................ [ 35%]
+........................................................................ [ 71%]
+..........................................................               [100%]
+202 passed in 264.53s (0:04:24)
+
+--------------------------------------------------------------------------------
+5. TASK 15 CONTRACT COMPLIANCE MATRIX
+--------------------------------------------------------------------------------
+Contract Requirement                                  | Status | Evidence
+------------------------------------------------------|--------|------------------------------------------------
+1. Replay Determinism (same input/version/output)     | PASS   | test_same_input_same_version_same_output (pred hash identical)
+2. Worse Candidate Rejected                           | PASS   | test_candidate_worse_is_rejected (active.json unchanged)
+3. 10% Aggregate Cost Differential Rule               | PASS   | test_aggregate_10_percent_rule (REJECT_NOT_BETTER)
+4. Zero Individual Window Regression                  | PASS   | test_individual_window_no_regression (REJECT_WINDOW_REGRESSION)
+5. Grouped Holdout Directional Agreement              | PASS   | test_grouped_holdout_directional_agreement (REJECT_GROUPED_DISAGREEMENT)
+6. Common Population & Coverage Contract (>=0.90)     | PASS   | test_common_population_coverage_contract (REJECT_COVERAGE)
+7. €380 Fixed Visit Cost Excluded from Promo Delta    | PASS   | test_cost_delta_excludes_fixed_visit_cost (strictly €600 penalty diff)
+8. Grouped Holdout Isolation in Evaluation            | PASS   | test_holdout_isolation_enforced_in_evaluation (59 holdout gids segregated)
+9. Production Pointer Unchanged on Rejection          | PASS   | test_production_pointer_unchanged_on_rejection (active.json byte-identical)
+10. Promotable Fixture Positive Path                  | PASS   | test_promotable_fixture_passes_and_promotes (atomic swap to active.json)
+11. Real Candidate v0002 Rejection Audit              | PASS   | test_real_candidate_v0002_rejection_audit (REJECT_GROUPED_DISAGREEMENT)
+12. Reviewer make run Integrity (120 rows)            | PASS   | make_submission + validate_submission.py OK
+13. Full Regression Suite (202 tests)                 | PASS   | 202 passed, 0 failed, 0 skipped
+
+--------------------------------------------------------------------------------
+6. OPERATIONS-MANAGER SUMMARY & GOVERNANCE RECORD
+--------------------------------------------------------------------------------
+The promotion gate evaluated candidate v0002 against active baseline v0001 across three
+rolling temporal windows (Nov 2025, Dec 2025, Jan 2026; 13 Mondays) and an isolated holdout
+of 59 hardware gateways (GROUP_HOLDOUT_IDS).
+
+Key Metrics:
+- Temporal Windows (Development Fleet):
+  Active missed 71 vs Candidate missed 60 broken gateway-weeks (-11 missed faults, +15.49% improvement).
+  Window 1 (Nov 2025): 32 -> 26 (+18.75% improvement, zero regression)
+  Window 2 (Dec 2025): 24 -> 20 (+16.67% improvement, zero regression)
+  Window 3 (Jan 2026): 15 -> 14 (+6.67% improvement, zero regression)
+- Grouped Holdout (59 Unseen Gateways):
+  Active missed 17 vs Candidate missed 18 broken gateway-weeks (+1 fault regression on holdout hardware).
+- Common Population Coverage:
+  100.00% valid reporting gateway-weeks scored by both models (clears >= 90.00% requirement).
+- Operations Economics:
+  Fixed technician dispatch cost: €45,600.00 (120 visits × €380, constant across valid models).
+  Active fault penalty cost:      €88,200.00 (€45,600 + 71 × €600).
+  Candidate fault penalty cost:   €81,600.00 (€45,600 + 60 × €600).
+  Economic differential:          €+6,600.00 penalty savings on historical development data.
+
+Lifecycle Decision:
+Decision:     REJECT
+Reason Code:  REJECT_GROUPED_DISAGREEMENT
+Explanation:  Grouped holdout on unseen hardware disagreed with temporal backtest: candidate missed
+              18 broken weeks vs active 17 (+1 regression).
+Action:       Active production registry (registry/active.json) remains strictly on v0001.
+              Production safety guard prevented an unproven candidate from deploying to production.
+
+================================================================================
+END OF TASK 15 EXECUTION EVIDENCE
+================================================================================
