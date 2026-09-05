@@ -1,7 +1,8 @@
-"""Tests verifying --data PATH contract across all CLI entry points and loaders (Task 11)."""
+"""Tests verifying --data PATH contract across all CLI entry points and loaders (Task 11 & Task 12)."""
 from __future__ import annotations
 
 import pathlib
+import shutil
 import subprocess
 import sys
 import pytest
@@ -9,27 +10,34 @@ import pytest
 from app.data.loader import load_gateway_master, load_field_visits, load_telemetry_window
 
 
-def test_cli_predict_propagation_to_alternate_directory(tmp_path: pathlib.Path):
-    """Verify scripts/predict.py --data PATH reads from alternate mounted data directory."""
-    sentinel_id = "0639EA999999"
-    master_content = (
-        "gateway_id,tenant,site_type,region,hw_model,antenna_type,fw_version,installed_on,n_meters_installed\n"
-        f"{sentinel_id},tenant_test,Rooftop,Berlin,ModelX,Omni,v1.0,2025-01-01,100\n"
-    )
-    (tmp_path / "gateway_master.csv").write_bytes(master_content.encode("cp1252"))
+@pytest.fixture
+def repo_root() -> pathlib.Path:
+    return pathlib.Path(__file__).resolve().parent.parent.parent
 
+
+def test_cli_predict_propagation_to_alternate_directory(repo_root: pathlib.Path, tmp_path: pathlib.Path):
+    """Verify scripts/predict.py --data PATH reads from alternate mounted data directory."""
+    alt_data = tmp_path / "alt_data"
+    alt_data.mkdir(parents=True)
+    shutil.copy(repo_root / "data" / "gateway_master.csv", alt_data / "gateway_master.csv")
+    shutil.copytree(repo_root / "data" / "telemetry", alt_data / "telemetry")
+
+    out_csv = tmp_path / "pred.csv"
     cmd = [
         sys.executable,
         "scripts/predict.py",
         "--data",
-        str(tmp_path),
+        str(alt_data),
         "--week",
         "2026-02-02",
+        "--output",
+        str(out_csv),
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"Command failed: {res.stderr}"
-    assert str(tmp_path.resolve()) in res.stdout
-    assert "Eligible gateways: 1 of 1" in res.stdout
+    assert str(alt_data.resolve()) in res.stdout
+    assert "Eligible gateways: 15 selected" in res.stdout
+    assert out_csv.exists()
 
 
 def test_cli_predict_rejects_nonexistent_directory():
@@ -48,25 +56,26 @@ def test_cli_predict_rejects_nonexistent_directory():
     assert "does not exist" in res.stderr
 
 
-def test_cli_make_submission_propagation_to_alternate_directory(tmp_path: pathlib.Path):
+def test_cli_make_submission_propagation_to_alternate_directory(repo_root: pathlib.Path, tmp_path: pathlib.Path):
     """Verify scripts/make_submission.py --data PATH reads from alternate data directory."""
-    rows = [
-        f"0639EA9999{i:02d},tenant_test,Rooftop,Berlin,ModelX,Omni,v1.0,2025-01-01,100"
-        for i in range(20)
-    ]
-    header = "gateway_id,tenant,site_type,region,hw_model,antenna_type,fw_version,installed_on,n_meters_installed"
-    csv_content = header + "\n" + "\n".join(rows) + "\n"
-    (tmp_path / "gateway_master.csv").write_bytes(csv_content.encode("cp1252"))
+    alt_data = tmp_path / "alt_data_sub"
+    alt_data.mkdir(parents=True)
+    shutil.copy(repo_root / "data" / "gateway_master.csv", alt_data / "gateway_master.csv")
+    shutil.copytree(repo_root / "data" / "telemetry", alt_data / "telemetry")
 
+    out_csv = tmp_path / "sub.csv"
     cmd = [
         sys.executable,
         "scripts/make_submission.py",
         "--data",
-        str(tmp_path),
+        str(alt_data),
+        "--output",
+        str(out_csv),
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     assert res.returncode == 0, f"Command failed: {res.stderr}"
-    assert "Loaded 20 master gateways from" in res.stdout
+    assert "120 rows over 8 weeks" in res.stdout
+    assert out_csv.exists()
 
 
 def test_cli_make_submission_rejects_nonexistent_directory():
@@ -83,14 +92,8 @@ def test_cli_make_submission_rejects_nonexistent_directory():
     assert "does not exist" in res.stderr
 
 
-def test_cli_train_data_flag_and_path_validation(tmp_path: pathlib.Path):
-    """Verify scripts/train.py --data flag and path validation at Phase Gating boundary.
-    
-    Explicit Contract Boundary:
-    scripts/train.py accepts --data and enforces path validation. Per Rule 2 (Strict Phase
-    Gating), training logic is deliberately withheld (NotImplementedError). This test strictly
-    proves CLI argument acceptance and path validation without over-crediting training execution.
-    """
+def test_cli_train_data_flag_and_path_validation(repo_root: pathlib.Path, tmp_path: pathlib.Path):
+    """Verify scripts/train.py --data flag, path validation, and candidate materialization."""
     # 1. Non-existent path rejects cleanly with non-zero exit code
     nonexistent = pathlib.Path("data_does_not_exist_12345")
     cmd_invalid = [
@@ -103,22 +106,38 @@ def test_cli_train_data_flag_and_path_validation(tmp_path: pathlib.Path):
     assert res_inv.returncode != 0
     assert "does not exist" in res_inv.stderr
 
-    # 2. Existing path validates successfully, then halts at Phase Gating boundary with NotImplementedError
-    cmd_valid = [
+    # 2. Empty directory rejects cleanly with non-zero exit code
+    cmd_empty = [
         sys.executable,
         "scripts/train.py",
         "--data",
         str(tmp_path),
     ]
-    res_val = subprocess.run(cmd_valid, capture_output=True, text=True)
-    assert res_val.returncode != 0
-    assert "NotImplementedError" in res_val.stderr or "Phase gating" in res_val.stderr
+    res_empty = subprocess.run(cmd_empty, capture_output=True, text=True)
+    assert res_empty.returncode != 0
+    assert "Missing gateway_master.csv" in res_empty.stderr or "failed" in res_empty.stderr
 
+    # 3. Real/valid data directory succeeds and materializes candidate
+    cand_out = tmp_path / "cand_test"
+    cmd_valid = [
+        sys.executable,
+        "scripts/train.py",
+        "--data",
+        str(repo_root / "data"),
+        "--candidate",
+        "v_cli_test",
+        "--output-dir",
+        str(cand_out),
+    ]
+    res_val = subprocess.run(cmd_valid, capture_output=True, text=True)
+    assert res_val.returncode == 0, f"train.py failed: {res_val.stderr}"
+    assert "Materialized candidate model: v_cli_test" in res_val.stdout
+    assert cand_out.exists()
+    assert (cand_out / "manifest.json").exists()
 
 
 def test_underlying_loaders_propagate_data_dir(tmp_path: pathlib.Path):
     """Verify loaders take explicit data_dir and do not hardcode ./data."""
-    # Ensure empty directory raises FileNotFoundError
     with pytest.raises(FileNotFoundError):
         load_gateway_master(tmp_path)
 

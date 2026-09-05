@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Run inference foundation with active model and --data propagation."""
+"""Run active model inference per frozen architecture contracts."""
 from __future__ import annotations
 
 import argparse
-import datetime as dt
-import json
+import csv
 import pathlib
 import sys
 
@@ -13,12 +12,11 @@ root_dir = pathlib.Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from app.data.loader import get_gateway_eligibility, load_gateway_master
-from app.data.schema import TelemetrySchemaContract
+from app.model.predict import InsufficientEligibleGatewaysError, ModelArtifactError, predict_week
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run active model prediction foundation")
+    parser = argparse.ArgumentParser(description="Run active model prediction pipeline")
     parser.add_argument(
         "--data",
         type=pathlib.Path,
@@ -37,32 +35,101 @@ def main() -> None:
         default=pathlib.Path("predictions_week.csv"),
         help="Output CSV path",
     )
+    parser.add_argument(
+        "--backlog-report",
+        type=pathlib.Path,
+        default=pathlib.Path("backlog_report.json"),
+        help="Output backlog economics JSON report",
+    )
+    parser.add_argument(
+        "--run-record",
+        type=pathlib.Path,
+        default=pathlib.Path("runs/prediction/run_latest.json"),
+        help="Output run provenance JSON record",
+    )
     args = parser.parse_args()
-
-    # Verify active model configuration exists
-    active_path = pathlib.Path("registry/active.json")
-    if not active_path.exists():
-        print("ERROR: registry/active.json missing", file=sys.stderr)
-        sys.exit(1)
-
-    with open(active_path, encoding="utf-8") as f:
-        active = json.load(f)
-    active_version = active.get("production_version", "v0001")
 
     # Task 11: Validate data directory exists
     if not args.data.exists() or not args.data.is_dir():
         print(f"ERROR: Specified data directory does not exist: {args.data}", file=sys.stderr)
         sys.exit(1)
 
-    # Propagate args.data into actual data-loading foundation
+    # Load master and compute eligibility status
+    from app.data.loader import get_gateway_eligibility, load_gateway_master
+    import datetime as dt
+    import json
+
     master_df = load_gateway_master(args.data)
     week_date = dt.date.fromisoformat(args.week)
     eligibility_df = get_gateway_eligibility(master_df, week_date)
     eligible_count = int(eligibility_df["is_eligible"].sum())
 
+    active_path = pathlib.Path("registry/active.json")
+    active_version = "v0001"
+    if active_path.exists():
+        try:
+            active_version = json.loads(active_path.read_text(encoding="utf-8")).get("production_version", "v0001")
+        except Exception:
+            pass
+
     print(f"Active model: {active_version}")
     print(f"Data source: {args.data.resolve()}")
     print(f"Week: {args.week} | Eligible gateways: {eligible_count} of {len(master_df)}")
+
+    has_telemetry = (
+        (args.data / "telemetry").exists()
+        or (args.data / "telemetry.parquet").exists()
+        or (args.data.is_file() and args.data.suffix == ".parquet")
+    )
+    if not has_telemetry:
+        print("[Notice] No telemetry partitions found in data directory; skipping model scoring.")
+        return
+
+    try:
+        result = predict_week(data_dir=args.data, week_start=args.week)
+    except (ModelArtifactError, InsufficientEligibleGatewaysError, FileNotFoundError) as exc:
+        print(f"ERROR: Inference failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    # Write predictions.csv with strictly 6-decimal float formatting and LF line endings
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.output, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerow(["week_start", "rank", "gateway_id", "score", "reason"])
+        for p in result["predictions"]:
+            writer.writerow([
+                p["week_start"],
+                p["rank"],
+                p["gateway_id"],
+                f"{p['score']:.6f}",
+                p["reason"],
+            ])
+
+    # Write backlog report
+    args.backlog_report.parent.mkdir(parents=True, exist_ok=True)
+    import json
+    args.backlog_report.write_text(
+        json.dumps(result["backlog_report"], indent=2), encoding="utf-8"
+    )
+
+    # Write run record
+    args.run_record.parent.mkdir(parents=True, exist_ok=True)
+    run_record_data = {
+        "active_version": result["active_version"],
+        "week_start": result["week_start"],
+        "data_dir": str(args.data),
+        "replay_hash": result["replay_hash"],
+        "predictions_file": str(args.output),
+        "backlog_file": str(args.backlog_report),
+    }
+    args.run_record.write_text(json.dumps(run_record_data, indent=2), encoding="utf-8")
+
+    print(f"Active model: {result['active_version']}")
+    print(f"Data source: {args.data.resolve()}")
+    print(f"Week: {args.week} | Eligible gateways: {result['backlog_report']['selected_count']} selected, {result['backlog_report']['deferred_count']} deferred")
+    print(f"Predictions written to {args.output}")
+    print(f"Backlog report written to {args.backlog_report}")
+    print(f"Replay hash: {result['replay_hash']}")
 
 
 if __name__ == "__main__":

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Canonical submission entry point foundation."""
+"""Canonical submission assembly entry point."""
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime as dt
 import pathlib
+import subprocess
 import sys
 
 # Ensure repository root is on sys.path
@@ -12,13 +14,13 @@ root_dir = pathlib.Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from app.data.loader import get_gateway_eligibility, load_gateway_master
+from app.model.predict import InsufficientEligibleGatewaysError, ModelArtifactError, predict_week
 
 SCORED_WEEKS = [dt.date(2026, 2, 2) + dt.timedelta(days=7 * i) for i in range(8)]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate 8-week challenge submission foundation")
+    parser = argparse.ArgumentParser(description="Generate 8-week challenge submission")
     parser.add_argument(
         "--data",
         type=pathlib.Path,
@@ -31,6 +33,11 @@ def main() -> None:
         default=pathlib.Path("predictions.csv"),
         help="Output CSV path (default: predictions.csv)",
     )
+    parser.add_argument(
+        "--skip-validation",
+        action="store_true",
+        help="Skip automatic validate_submission.py invocation",
+    )
     args = parser.parse_args()
 
     # Task 11: Validate data directory exists
@@ -38,19 +45,51 @@ def main() -> None:
         print(f"ERROR: Specified data directory does not exist: {args.data}", file=sys.stderr)
         sys.exit(1)
 
-    # Propagate args.data into actual data loader
-    master_df = load_gateway_master(args.data)
-    print(f"[Phase 1 Foundation] Loaded {len(master_df)} master gateways from {args.data}")
+    all_predictions: list[dict[str, str | int | float]] = []
 
     for monday in SCORED_WEEKS:
-        elig_df = get_gateway_eligibility(master_df, monday)
-        n_eligible = int(elig_df["is_eligible"].sum())
-        if n_eligible < 15:
-            print(f"ERROR: Insufficient eligible gateways for {monday}: {n_eligible} < 15", file=sys.stderr)
+        try:
+            result = predict_week(data_dir=args.data, week_start=monday)
+        except (ModelArtifactError, InsufficientEligibleGatewaysError, FileNotFoundError) as exc:
+            print(f"ERROR: Inference failed for week {monday}: {exc}", file=sys.stderr)
             sys.exit(1)
 
-    print(f"[Phase 1 Foundation] Data contracts verified across all {len(SCORED_WEEKS)} challenge weeks.")
-    print("[Task 1 Notice] Model scoring logic (v0001/v0002) is unproven/not yet implemented in Task 1.")
+        preds = result["predictions"]
+        if len(preds) != 15:
+            print(f"ERROR: Week {monday} produced {len(preds)} predictions, expected exactly 15", file=sys.stderr)
+            sys.exit(1)
+        all_predictions.extend(preds)
+
+    # Write predictions.csv with strictly 6-decimal float formatting and LF endings
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    with open(args.output, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerow(["week_start", "rank", "gateway_id", "score", "reason"])
+        for p in all_predictions:
+            writer.writerow([
+                p["week_start"],
+                p["rank"],
+                p["gateway_id"],
+                f"{float(p['score']):.6f}",
+                p["reason"],
+            ])
+
+    print(f"Wrote {args.output} - {len(all_predictions)} rows over {len(SCORED_WEEKS)} weeks")
+
+    # Run official validator if present
+    validator_path = root_dir / "validate_submission.py"
+    if not args.skip_validation and validator_path.exists():
+        val_res = subprocess.run(
+            [sys.executable, str(validator_path), str(args.output)],
+            capture_output=True,
+            text=True,
+        )
+        if val_res.returncode != 0:
+            print(f"ERROR: validate_submission.py rejected {args.output}:", file=sys.stderr)
+            print(val_res.stdout, file=sys.stderr)
+            print(val_res.stderr, file=sys.stderr)
+            sys.exit(val_res.returncode)
+        print("Submission validated successfully by validate_submission.py: PASS")
 
 
 if __name__ == "__main__":

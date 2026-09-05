@@ -43,3 +43,5 @@ data_dict_text.txt
 brief.pdf
 data_dict.pdf
 predictions.csv
+predictions_week.csv
+backlog_report.json

@@ -7,6 +7,10 @@ import pandas as pd
 from app.data.schema import MissingDataReason
 
 
+class SourceCompletenessError(Exception):
+    """Raised when systemic fleet absence trips the source-completeness guard into BLOCK_FEATURES."""
+
+
 class CompletenessResult(tuple):
     """Result of fleet-wide source completeness check.
 
