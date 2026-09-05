@@ -592,6 +592,7 @@ def test_e2e_cli_connectivity_with_canonical_id(tmp_path: pathlib.Path):
         "2026-02-02",
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
-    assert res.returncode == 0, f"CLI command failed: {res.stderr}"
+    assert res.returncode == 1, f"Expected non-zero exit code on missing telemetry, got {res.returncode}: {res.stderr}"
     assert "Eligible gateways: 2 of 2" in res.stdout
+    assert "No telemetry" in res.stderr
 

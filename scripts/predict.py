@@ -82,12 +82,12 @@ def main() -> None:
         or (args.data.is_file() and args.data.suffix == ".parquet")
     )
     if not has_telemetry:
-        print("[Notice] No telemetry partitions found in data directory; skipping model scoring.")
-        return
+        print(f"ERROR: No telemetry partitions found in data directory: {args.data.resolve()}; failing closed.", file=sys.stderr)
+        sys.exit(1)
 
     try:
         result = predict_week(data_dir=args.data, week_start=args.week)
-    except (ModelArtifactError, InsufficientEligibleGatewaysError, FileNotFoundError) as exc:
+    except (ModelArtifactError, InsufficientEligibleGatewaysError, FileNotFoundError, Exception) as exc:
         print(f"ERROR: Inference failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
