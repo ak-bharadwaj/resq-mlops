@@ -173,6 +173,46 @@ def test_naive_datetime_rejection(tmp_path: pathlib.Path):
         load_telemetry_window(tmp_path, cutoff_utc=valid_cutoff, start_utc=naive_start)
 
 
+def test_non_utc_timezone_datetime_rejection(tmp_path: pathlib.Path):
+    """Verify non-UTC timezone-aware datetime bounds (e.g. IST +05:30) are rejected with ValueError."""
+    ist_tz = dt.timezone(dt.timedelta(hours=5, minutes=30))
+    non_utc_cutoff = dt.datetime(2026, 2, 2, 5, 30, 0, tzinfo=ist_tz)
+
+    with pytest.raises(ValueError, match="cutoff_utc must be in UTC timezone"):
+        load_telemetry_window(tmp_path, cutoff_utc=non_utc_cutoff)
+
+    valid_cutoff = dt.datetime(2026, 2, 2, 0, 0, 0, tzinfo=dt.timezone.utc)
+    non_utc_start = dt.datetime(2026, 1, 1, 5, 30, 0, tzinfo=ist_tz)
+    with pytest.raises(ValueError, match="start_utc must be in UTC timezone"):
+        load_telemetry_window(tmp_path, cutoff_utc=valid_cutoff, start_utc=non_utc_start)
+
+
+def test_load_telemetry_window_fails_closed_on_unexpected_path(tmp_path: pathlib.Path):
+    """Verify load_telemetry_window fails closed with FileNotFoundError if telemetry data is not at expected location."""
+    cutoff_utc = dt.datetime(2026, 2, 2, 0, 0, 0, tzinfo=dt.timezone.utc)
+
+    # Empty directory with random parquet file that is NOT in telemetry/ or telemetry.parquet
+    random_parquet = tmp_path / "random_data.parquet"
+    pd.DataFrame([{"gateway_id": "0639EA560201", "ts_utc": "2026-01-01T00:00:00Z"}]).to_parquet(random_parquet)
+
+    with pytest.raises(FileNotFoundError, match="Telemetry path not found"):
+        load_telemetry_window(tmp_path, cutoff_utc=cutoff_utc)
+
+
+def test_load_telemetry_window_enforces_schema_contract(tmp_path: pathlib.Path):
+    """Verify load_telemetry_window enforces TelemetrySchemaContract in production loading path."""
+    tel_dir = tmp_path / "telemetry"
+    tel_dir.mkdir(parents=True)
+
+    # Parquet file missing 'ts_utc' column
+    rows = [{"gateway_id": "0639EA560201", "some_metric": 10.0}]
+    pd.DataFrame(rows).to_parquet(tel_dir / "part-0.parquet")
+
+    cutoff_utc = dt.datetime(2026, 2, 2, 0, 0, 0, tzinfo=dt.timezone.utc)
+    with pytest.raises(SchemaValidationError, match="Telemetry schema validation failed"):
+        load_telemetry_window(tmp_path, cutoff_utc=cutoff_utc)
+
+
 def test_telemetry_schema_contract_validation():
     """Verify TelemetrySchemaContract loading and validate_or_raise behavior."""
     schema = TelemetrySchemaContract.load_from_model(pathlib.Path("models/v0001"))

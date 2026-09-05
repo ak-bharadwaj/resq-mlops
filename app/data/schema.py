@@ -37,9 +37,9 @@ class SchemaValidationError(Exception):
 
 
 class TelemetrySchemaContract(BaseModel):
-    """Model-specific telemetry contract loaded from models/<version>/schema.json."""
-    required_columns: List[str]
-    dtypes: Dict[str, str]
+    """Model-specific telemetry contract loaded from models/<version>/schema.json or defaults."""
+    required_columns: List[str] = ["gateway_id", "ts_utc"]
+    dtypes: Dict[str, str] = {"gateway_id": "string", "ts_utc": "datetime"}
     time_grain: str = "hourly"
     timestamp_column: str = "ts_utc"
 
@@ -96,13 +96,6 @@ class TelemetrySchemaContract(BaseModel):
                         errors.append(f"Column '{col}' expected numeric dtype, got {df[col].dtype}")
 
         return len(errors) == 0, errors
-
-    def validate_or_raise(self, df: pd.DataFrame) -> None:
-        """Validate DataFrame and raise SchemaValidationError if invalid."""
-        valid, errors = self.validate_dataframe(df)
-        if not valid:
-            raise SchemaValidationError(f"Telemetry schema validation failed: {errors}")
-
 
     def validate_or_raise(self, df: pd.DataFrame) -> None:
         """Validate DataFrame and raise SchemaValidationError if invalid."""
@@ -256,9 +249,13 @@ class FieldVisitsSchemaContract(BaseModel):
 
         return len(errors) == 0, errors
 
-    def validate(self, df: pd.DataFrame) -> None:
+    def validate_or_raise(self, df: pd.DataFrame) -> None:
         """Validate DataFrame and raise SchemaValidationError if invalid."""
         valid, errors = self.validate_dataframe(df)
         if not valid:
             raise SchemaValidationError(f"Field visits schema validation failed: {errors}")
+
+    def validate(self, df: pd.DataFrame) -> None:
+        """Alias for validate_or_raise."""
+        self.validate_or_raise(df)
 

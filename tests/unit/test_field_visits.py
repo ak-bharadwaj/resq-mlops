@@ -43,6 +43,20 @@ def test_verify_field_visits_encoding_cp1252(tmp_path: pathlib.Path):
     assert encoding == "cp1252"
 
 
+def test_verify_field_visits_encoding_unsupported_bytes_raises_error(tmp_path: pathlib.Path):
+    """Verify ValueError is raised when file contains unsupported or malformed byte sequences."""
+    # Bytes b'\x80\x81\xff\xfe' are invalid UTF-8 and invalid CP1252
+    csv_bytes = (
+        b"visit_id,gateway_id,requested_on,visited_on,reason_reported,outcome,parts_replaced,technician_hours\n"
+        b"V001,06:39:EA:56:02:C1,2025-09-01,2025-09-03,COMM_FAULT,REPAIRED,\x81\x8d\x8f\x90\x9d,2.5\n"
+    )
+    test_file = tmp_path / "field_visits.csv"
+    test_file.write_bytes(csv_bytes)
+
+    with pytest.raises(ValueError, match="Unsupported or malformed encoding"):
+        verify_field_visits_encoding(tmp_path)
+
+
 
 def test_verify_field_visits_encoding_missing_file_raises_filenotfound(tmp_path: pathlib.Path):
     """Verify FileNotFoundError is raised when field_visits.csv is missing."""

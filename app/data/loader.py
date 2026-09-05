@@ -13,6 +13,7 @@ from app.data.schema import (
     GatewayMasterSchemaContract,
     MissingDataReason,
     SchemaValidationError,
+    TelemetrySchemaContract,
 )
 
 
@@ -119,7 +120,7 @@ def verify_field_visits_encoding(data_dir: pathlib.Path) -> str:
     """Explicitly verify field_visits.csv encoding ahead of parsing.
 
     Reads raw bytes to verify UTF-8 or CP1252 compatibility.
-    Returns the verified encoding name.
+    Fails closed if the encoding is unsupported or malformed.
     """
     path = data_dir / "field_visits.csv"
     if not path.exists():
@@ -140,7 +141,10 @@ def verify_field_visits_encoding(data_dir: pathlib.Path) -> str:
     except UnicodeDecodeError:
         pass
 
-    return "latin-1"
+    raise ValueError(
+        f"Unsupported or malformed encoding in {path}. "
+        "File must be encoded in valid UTF-8 or CP1252 per frozen contract."
+    )
 
 
 def load_field_visits(data_dir: pathlib.Path) -> pd.DataFrame:
@@ -281,6 +285,17 @@ def resolve_telemetry_duplicates(
     return deduped, exact_dup_count
 
 
+def _check_is_utc(dt_val: dt.datetime, param_name: str) -> None:
+    """Strictly verify datetime parameter is timezone-aware and in UTC timezone."""
+    if dt_val.tzinfo is None:
+        raise ValueError(f"{param_name} must be a timezone-aware UTC datetime (got naive datetime)")
+    offset = dt_val.utcoffset()
+    if offset != dt.timedelta(0):
+        raise ValueError(
+            f"{param_name} must be in UTC timezone (got tzinfo={dt_val.tzinfo} with offset {offset})"
+        )
+
+
 def load_telemetry_window(
     data_dir: pathlib.Path,
     cutoff_utc: dt.datetime,
@@ -291,26 +306,29 @@ def load_telemetry_window(
 
     Leakage Firewall Contract:
     - FEATURE_CUTOFF is strictly Monday 00:00 UTC.
+    - cutoff_utc and start_utc MUST be timezone-aware UTC datetimes (utcoffset == 0).
+    - Path discovery fails closed (only data_dir/telemetry or data_dir/telemetry.parquet or explicit parquet file).
+    - Enforces TelemetrySchemaContract on loaded DataFrame.
     - No record with ts >= cutoff_utc may ever be loaded or returned.
     - Half-open window: [start_utc, cutoff_utc).
     - Adds canonical_id column using canonicalize_gateway_id.
     - Column projection supports requesting derived 'canonical_id' and 'ts' without crashing parquet loader.
     """
-    if cutoff_utc.tzinfo is None:
-        raise ValueError("cutoff_utc must be a timezone-aware UTC datetime")
-    if start_utc is not None and start_utc.tzinfo is None:
-        raise ValueError("start_utc must be a timezone-aware UTC datetime")
+    _check_is_utc(cutoff_utc, "cutoff_utc")
+    if start_utc is not None:
+        _check_is_utc(start_utc, "start_utc")
 
-    telemetry_path = data_dir / "telemetry"
-    if not telemetry_path.exists():
-        if (data_dir / "telemetry.parquet").exists():
-            telemetry_path = data_dir / "telemetry.parquet"
-        elif data_dir.is_dir() and len(list(data_dir.glob("*.parquet"))) > 0:
-            telemetry_path = data_dir
-        elif data_dir.suffix == ".parquet" and data_dir.exists():
-            telemetry_path = data_dir
-        else:
-            raise FileNotFoundError(f"Telemetry path not found: {telemetry_path}")
+    if data_dir.is_file() and data_dir.suffix == ".parquet":
+        telemetry_path = data_dir
+    else:
+        telemetry_path = data_dir / "telemetry"
+        if not telemetry_path.exists():
+            if (data_dir / "telemetry.parquet").exists():
+                telemetry_path = data_dir / "telemetry.parquet"
+            else:
+                raise FileNotFoundError(
+                    f"Telemetry path not found: Expected directory '{data_dir / 'telemetry'}' or file '{data_dir / 'telemetry.parquet'}'"
+                )
 
     # If columns specified, separate physical parquet columns from derived columns ('canonical_id', 'ts')
     cols = None
@@ -323,6 +341,11 @@ def load_telemetry_window(
 
     # Read parquet partitions
     df = pd.read_parquet(telemetry_path, columns=cols)
+
+    # Enforce telemetry schema contract on incoming raw DataFrame
+    contract = TelemetrySchemaContract()
+    contract.validate_or_raise(df)
+
     df["ts"] = pd.to_datetime(df["ts_utc"], utc=True)
 
     # Apply strict temporal firewall BEFORE canonicalization to avoid wasteful compute
