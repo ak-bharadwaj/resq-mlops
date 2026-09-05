@@ -17,31 +17,47 @@ COLON_12HEX_REGEX = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 def canonicalize_gateway_id(raw_id: Any) -> str:
     """Canonicalize a gateway ID to 12 uppercase hex characters with separators removed.
 
-    Accepts:
-    - 12 hex characters bare (e.g. '0639EA5602C1')
-    - 6 octets colon-separated (e.g. '06:39:EA:56:02:C1')
-    - Mixed case or leading/trailing whitespace
-
-    Rejects:
-    - Non-hex characters
-    - Length != 12 after normalization
+    Frozen Contract:
+    - 12 uppercase hexadecimal characters, separators removed.
+    - Accepts bare 12-character hexadecimal IDs (e.g. '0639EA5602C1', '0639ea5602c1').
+    - Accepts 6-octet colon-separated hexadecimal IDs (e.g. '06:39:EA:56:02:C1', '06:39:ea:56:02:c1').
+    - Strips surrounding whitespace.
+    - Normalizes lowercase to uppercase.
+    - Removes permitted colon separators.
+    - Rejects null, empty, whitespace-only, non-hex characters, incorrect length,
+      or unauthorized separators (e.g. hyphens).
+    - Fails deterministically rather than silently coercing malformed IDs.
     """
-    if raw_id is None or pd.isna(raw_id):
+    if raw_id is None:
         raise ValueError("gateway_id cannot be null or empty")
 
+    # Reject non-scalar structures (arrays, collections, Series) deterministically
+    if isinstance(raw_id, (list, tuple, dict, set, pd.Series, pd.DataFrame)) or (
+        hasattr(raw_id, "__len__") and not isinstance(raw_id, (str, bytes))
+    ):
+        raise ValueError(
+            f"Invalid gateway ID format: '{raw_id}'. Expected bare 12-hex or 6-octet colon-separated hexadecimal."
+        )
+
+    try:
+        if pd.isna(raw_id):
+            raise ValueError("gateway_id cannot be null or empty")
+    except (ValueError, TypeError):
+        raise ValueError(
+            f"Invalid gateway ID format: '{raw_id}'. Expected bare 12-hex or 6-octet colon-separated hexadecimal."
+        )
+
     cleaned = str(raw_id).strip()
+    if not cleaned:
+        raise ValueError("gateway_id cannot be null or empty")
+
     if COLON_12HEX_REGEX.match(cleaned):
         return cleaned.replace(":", "").upper()
     if BARE_12HEX_REGEX.match(cleaned):
         return cleaned.upper()
 
-    # If format doesn't match standard patterns, check if stripping colons/hyphens gives 12 hex
-    normalized = re.sub(r"[:-]", "", cleaned).upper()
-    if len(normalized) == 12 and BARE_12HEX_REGEX.match(normalized):
-        return normalized
-
     raise ValueError(
-        f"Invalid gateway ID format: '{raw_id}'. Expected 12 hexadecimal characters or colon-separated octets."
+        f"Invalid gateway ID format: '{raw_id}'. Expected bare 12-hex or 6-octet colon-separated hexadecimal."
     )
 
 
@@ -50,18 +66,33 @@ def load_gateway_master(data_dir: pathlib.Path) -> pd.DataFrame:
 
     Invariants:
     - Encoded as cp1252 (handles German characters safely).
-    - Adds canonical_id column.
+    - Adds canonical_id column using canonicalize_gateway_id.
     - Dates parsed as dt.date.
+    - Collision safety: equivalent representations across attributes are deduplicated safely;
+      distinct records colliding on canonical_id raise ConflictingRecordError.
     """
     path = data_dir / "gateway_master.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing gateway_master.csv at {path}")
 
-    df = pd.read_csv(path, encoding="cp1252")
+    df = pd.read_csv(path, encoding="cp1252", dtype={"gateway_id": str})
     df["canonical_id"] = df["gateway_id"].apply(canonicalize_gateway_id)
     df["installed_on"] = pd.to_datetime(df["installed_on"]).dt.date
     df["decommissioned_on"] = pd.to_datetime(df["decommissioned_on"]).dt.date
-    return df
+
+    # Collision safety: Check for equivalent vs distinct collisions on canonical_id
+    semantic_cols = [c for c in df.columns if c != "gateway_id"]
+    deduped = df.drop_duplicates(subset=semantic_cols, keep="first").copy()
+
+    if deduped["canonical_id"].duplicated().any():
+        conflicts = deduped.loc[deduped["canonical_id"].duplicated(keep=False)].sort_values(by="canonical_id")
+        sample = conflicts[["canonical_id"]].head(4).to_dict(orient="records")
+        raise ConflictingRecordError(
+            f"Conflicting master records detected for canonical gateway ID(s): {sample}. "
+            "Distinct records colliding on the same canonical ID BLOCK ingestion per frozen contract."
+        )
+
+    return deduped
 
 
 def verify_field_visits_encoding(data_dir: pathlib.Path) -> str:
@@ -93,14 +124,35 @@ def verify_field_visits_encoding(data_dir: pathlib.Path) -> str:
 
 
 def load_field_visits(data_dir: pathlib.Path) -> pd.DataFrame:
-    """Load field_visits.csv with verified encoding."""
+    """Load field_visits.csv with verified encoding.
+
+    Invariants:
+    - Encoding explicitly verified (UTF-8 / CP1252 / latin-1).
+    - Adds canonical_id column using canonicalize_gateway_id.
+    - Dates parsed as dt.date.
+    - Collision safety: equivalent representations across visit attributes are deduplicated safely;
+      distinct records colliding on visit_id raise ConflictingRecordError.
+    """
     path = data_dir / "field_visits.csv"
     encoding = verify_field_visits_encoding(data_dir)
-    df = pd.read_csv(path, encoding=encoding)
+    df = pd.read_csv(path, encoding=encoding, dtype={"gateway_id": str})
     df["canonical_id"] = df["gateway_id"].apply(canonicalize_gateway_id)
     df["requested_on"] = pd.to_datetime(df["requested_on"]).dt.date
     df["visited_on"] = pd.to_datetime(df["visited_on"]).dt.date
-    return df
+
+    # Collision safety: Check for equivalent vs distinct duplicate visits
+    semantic_cols = [c for c in df.columns if c != "gateway_id"]
+    deduped = df.drop_duplicates(subset=semantic_cols, keep="first").copy()
+
+    if "visit_id" in deduped.columns and deduped["visit_id"].duplicated().any():
+        conflicts = deduped.loc[deduped["visit_id"].duplicated(keep=False)].sort_values(by="visit_id")
+        sample = conflicts[["visit_id", "canonical_id"]].head(4).to_dict(orient="records")
+        raise ConflictingRecordError(
+            f"Conflicting visit records detected for visit_id(s): {sample}. "
+            "Distinct records colliding on the same visit ID BLOCK ingestion per frozen contract."
+        )
+
+    return deduped
 
 
 def get_gateway_eligibility(
@@ -143,18 +195,30 @@ def resolve_telemetry_duplicates(
     """Resolve duplicates per frozen telemetry contract (Section 7A).
 
     Semantics:
-    - Exact duplicate records across all columns: follow deterministic frozen rule
+    - Exact duplicate records across all columns (or equivalent representations across
+      all semantic columns other than raw formatting): follow deterministic frozen rule
       (keep first occurrence, log count).
-    - Conflicting records for same (gateway_id, timestamp) with differing values:
+    - Conflicting records for same key_cols (default: canonical_id, timestamp) with differing values:
       must BLOCK prediction/evaluation by raising ConflictingRecordError. Never silently choose.
     """
     if df.empty:
         return df, 0
 
-    # 1. Check exact duplicates
-    exact_dup_mask = df.duplicated(keep="first")
+    work_df = df
+    if "canonical_id" not in work_df.columns and "gateway_id" in work_df.columns:
+        work_df = work_df.copy()
+        work_df["canonical_id"] = work_df["gateway_id"].apply(canonicalize_gateway_id)
+
+    # 1. Check exact duplicates / equivalent representations across all semantic columns
+    # Exclude raw formatting columns (gateway_id, and ts_utc if authoritative parsed ts is present)
+    excluded = {"gateway_id"}
+    if "ts" in work_df.columns and "ts_utc" in work_df.columns:
+        excluded.add("ts_utc")
+    semantic_cols = [c for c in work_df.columns if c not in excluded]
+
+    exact_dup_mask = work_df.duplicated(subset=semantic_cols, keep="first")
     exact_dup_count = int(exact_dup_mask.sum())
-    deduped = df.drop_duplicates(keep="first").copy()
+    deduped = work_df.drop_duplicates(subset=semantic_cols, keep="first").copy()
 
     # 2. Check for conflicting duplicates on key_cols
     key_dup_mask = deduped.duplicated(subset=key_cols, keep=False)
@@ -181,6 +245,8 @@ def load_telemetry_window(
     - FEATURE_CUTOFF is strictly Monday 00:00 UTC.
     - No record with ts >= cutoff_utc may ever be loaded or returned.
     - Half-open window: [start_utc, cutoff_utc).
+    - Adds canonical_id column using canonicalize_gateway_id.
+    - Column projection supports requesting derived 'canonical_id' and 'ts' without crashing parquet loader.
     """
     if cutoff_utc.tzinfo is None:
         raise ValueError("cutoff_utc must be a timezone-aware UTC datetime")
@@ -189,20 +255,20 @@ def load_telemetry_window(
     if not telemetry_path.exists():
         raise FileNotFoundError(f"Telemetry path not found: {telemetry_path}")
 
-    # If columns specified, ensure gateway_id and ts_utc are included
+    # If columns specified, separate physical parquet columns from derived columns ('canonical_id', 'ts')
     cols = None
     if columns is not None:
-        cols = list(columns)
+        physical_cols = [c for c in columns if c not in ("canonical_id", "ts")]
         for req in ["gateway_id", "ts_utc"]:
-            if req not in cols:
-                cols.append(req)
+            if req not in physical_cols:
+                physical_cols.append(req)
+        cols = physical_cols
 
     # Read parquet partitions
     df = pd.read_parquet(telemetry_path, columns=cols)
     df["ts"] = pd.to_datetime(df["ts_utc"], utc=True)
-    df["canonical_id"] = df["gateway_id"].apply(canonicalize_gateway_id)
 
-    # Apply strict temporal firewall
+    # Apply strict temporal firewall BEFORE canonicalization to avoid wasteful compute
     mask = df["ts"] < cutoff_utc
     if start_utc is not None:
         if start_utc.tzinfo is None:
@@ -210,7 +276,15 @@ def load_telemetry_window(
         mask = mask & (df["ts"] >= start_utc)
 
     window_df = df.loc[mask].copy()
+    window_df["canonical_id"] = window_df["gateway_id"].apply(canonicalize_gateway_id)
 
     # Resolve duplicates deterministically
     deduped_df, _ = resolve_telemetry_duplicates(window_df, key_cols=["canonical_id", "ts"])
+
+    if columns is not None:
+        # Retain requested columns that exist in deduped_df
+        requested_present = [c for c in columns if c in deduped_df.columns]
+        return deduped_df[requested_present]
+
     return deduped_df
+
