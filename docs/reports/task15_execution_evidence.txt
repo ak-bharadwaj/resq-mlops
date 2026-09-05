@@ -3,9 +3,9 @@ LPDG MLOPS TRACK F: TASK 15 EXECUTION EVIDENCE
 ================================================================================
 
 Task: Task 15 - Evidence Gate (Multi-Window Evaluation & Promotion Policy)
-Execution Date (UTC): 2026-09-05T14:20:00Z
-Git Commit SHA: dca3028f727ac05e6dd3124ce57e936330250b5d
-Parent Commit SHA: 1e7dac8ccf5eb0060c29fb2d7a17353164e20f3b
+Execution Date (UTC): 2026-09-05T14:50:00Z
+Git Commit SHA: 7f79c18d159fb279f2e7d9591665fe60408c1f0e
+Parent Commit SHA: 530f5a1108f36e2185ec1f6d27c5db2ff8bd948f
 Python Version: 3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]
 Platform: win32
 Status: ALL VERIFICATIONS PASSED
@@ -57,21 +57,23 @@ hypothesis profile 'default'
 rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collecting ... collected 11 items
+collecting ... collected 13 items
 
-tests/unit/test_evidence_gate.py::test_same_input_same_version_same_output PASSED [  9%]
-tests/unit/test_evidence_gate.py::test_candidate_worse_is_rejected PASSED [ 18%]
-tests/unit/test_evidence_gate.py::test_aggregate_10_percent_rule PASSED  [ 27%]
-tests/unit/test_evidence_gate.py::test_individual_window_no_regression PASSED [ 36%]
-tests/unit/test_evidence_gate.py::test_grouped_holdout_directional_agreement PASSED [ 45%]
-tests/unit/test_evidence_gate.py::test_common_population_coverage_contract PASSED [ 54%]
-tests/unit/test_evidence_gate.py::test_cost_delta_excludes_fixed_visit_cost PASSED [ 63%]
-tests/unit/test_evidence_gate.py::test_holdout_isolation_enforced_in_evaluation PASSED [ 72%]
-tests/unit/test_evidence_gate.py::test_production_pointer_unchanged_on_rejection PASSED [ 81%]
-tests/unit/test_evidence_gate.py::test_promotable_fixture_passes_and_promotes PASSED [ 90%]
+tests/unit/test_evidence_gate.py::test_same_input_same_version_same_output PASSED [  7%]
+tests/unit/test_evidence_gate.py::test_candidate_worse_is_rejected PASSED [ 15%]
+tests/unit/test_evidence_gate.py::test_aggregate_10_percent_rule PASSED  [ 23%]
+tests/unit/test_evidence_gate.py::test_individual_window_no_regression PASSED [ 30%]
+tests/unit/test_evidence_gate.py::test_grouped_holdout_directional_agreement PASSED [ 38%]
+tests/unit/test_evidence_gate.py::test_common_population_coverage_contract PASSED [ 46%]
+tests/unit/test_evidence_gate.py::test_cost_delta_excludes_fixed_visit_cost PASSED [ 53%]
+tests/unit/test_evidence_gate.py::test_holdout_isolation_enforced_in_evaluation PASSED [ 61%]
+tests/unit/test_evidence_gate.py::test_production_pointer_unchanged_on_rejection PASSED [ 69%]
+tests/unit/test_evidence_gate.py::test_promotable_fixture_passes_and_promotes PASSED [ 76%]
+tests/unit/test_evidence_gate.py::test_common_population_exact_set_intersection PASSED [ 84%]
+tests/unit/test_evidence_gate.py::test_promotion_policy_authoritative_derivation_rejects_inconsistent_report PASSED [ 92%]
 tests/unit/test_evidence_gate.py::test_real_candidate_v0002_rejection_audit PASSED [100%]
 
-======================= 11 passed in 134.37s (0:02:14) ========================
+======================= 13 passed in 149.62s (0:02:29) ========================
 
 --------------------------------------------------------------------------------
 3. COMMAND: python scripts/make_submission.py --data ./data; python validate_submission.py predictions.csv (make run)
@@ -87,9 +89,9 @@ predictions.csv: OK
 Exit Code: 0
 STDOUT:
 ........................................................................ [ 35%]
-........................................................................ [ 71%]
-..........................................................               [100%]
-202 passed in 264.53s (0:04:24)
+........................................................................ [ 70%]
+............................................................             [100%]
+204 passed in 318.02s (0:05:18)
 
 --------------------------------------------------------------------------------
 5. TASK 15 CONTRACT COMPLIANCE MATRIX
@@ -102,13 +104,15 @@ Contract Requirement                                  | Status | Evidence
 4. Zero Individual Window Regression                  | PASS   | test_individual_window_no_regression (REJECT_WINDOW_REGRESSION)
 5. Grouped Holdout Directional Agreement              | PASS   | test_grouped_holdout_directional_agreement (REJECT_GROUPED_DISAGREEMENT)
 6. Common Population & Coverage Contract (>=0.90)     | PASS   | test_common_population_coverage_contract (REJECT_COVERAGE)
-7. €380 Fixed Visit Cost Excluded from Promo Delta    | PASS   | test_cost_delta_excludes_fixed_visit_cost (strictly €600 penalty diff)
-8. Grouped Holdout Isolation in Evaluation            | PASS   | test_holdout_isolation_enforced_in_evaluation (59 holdout gids segregated)
-9. Production Pointer Unchanged on Rejection          | PASS   | test_production_pointer_unchanged_on_rejection (active.json byte-identical)
-10. Promotable Fixture Positive Path                  | PASS   | test_promotable_fixture_passes_and_promotes (atomic swap to active.json)
-11. Real Candidate v0002 Rejection Audit              | PASS   | test_real_candidate_v0002_rejection_audit (REJECT_GROUPED_DISAGREEMENT)
-12. Reviewer make run Integrity (120 rows)            | PASS   | make_submission + validate_submission.py OK
-13. Full Regression Suite (202 tests)                 | PASS   | 202 passed, 0 failed, 0 skipped
+7. Exact Common Population Set Intersection (A & B)   | PASS   | test_common_population_exact_set_intersection (A & B, not min)
+8. Authoritative Policy Derivation (Anti-Forged)      | PASS   | test_promotion_policy_authoritative_derivation_rejects_inconsistent_report
+9. €380 Fixed Visit Cost Excluded from Promo Delta    | PASS   | test_cost_delta_excludes_fixed_visit_cost (strictly €600 penalty diff)
+10. Programmatic Holdout Isolation Across 13 Mondays  | PASS   | test_holdout_isolation_enforced_in_evaluation (mutually disjoint & firewall)
+11. Production Pointer Unchanged on Rejection         | PASS   | test_production_pointer_unchanged_on_rejection (active.json byte-identical)
+12. Promotable Fixture Positive Path                  | PASS   | test_promotable_fixture_passes_and_promotes (atomic swap to active.json)
+13. Real Candidate v0002 Rejection Audit              | PASS   | test_real_candidate_v0002_rejection_audit (REJECT_GROUPED_DISAGREEMENT)
+14. Reviewer make run Integrity (120 rows)            | PASS   | make_submission + validate_submission.py OK
+15. Full Regression Suite (204 tests)                 | PASS   | 204 passed, 0 failed, 0 skipped
 
 --------------------------------------------------------------------------------
 6. OPERATIONS-MANAGER SUMMARY & GOVERNANCE RECORD
@@ -127,6 +131,7 @@ Key Metrics:
   Active missed 17 vs Candidate missed 18 broken gateway-weeks (+1 fault regression on holdout hardware).
 - Common Population Coverage:
   100.00% valid reporting gateway-weeks scored by both models (clears >= 90.00% requirement).
+  Computed via strict set intersection across (canonical_id, monday_iso) pairs.
 - Operations Economics:
   Fixed technician dispatch cost: €45,600.00 (120 visits × €380, constant across valid models).
   Active fault penalty cost:      €88,200.00 (€45,600 + 71 × €600).
