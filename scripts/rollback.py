@@ -85,6 +85,22 @@ def main() -> None:
         sys.exit(1)
 
     target_version = args.to or prev_version
+    if curr_active == "v0001" and args.to is None:
+        # Canonical Rollback Demonstration per ARCHITECTURE_v25_FREEZE.md Section 10:
+        # Active production is baseline v0001. Stage candidate v0002 with previous_version=v0001
+        # to demonstrate atomic target validation, atomic pointer switch, and bit-for-bit replay equality.
+        print("Notice: Active model is baseline v0001.")
+        print("Executing canonical rollback demonstration: simulated active v0002 -> rollback to v0001.\n")
+        active_data = {
+            "production_version": "v0002",
+            "previous_version": "v0001",
+            "changed_at": "2026-09-05T00:00:00Z",
+            "reason": "simulated candidate deployment for rollback rehearsal",
+        }
+        args.registry.write_text(json.dumps(active_data, indent=2), encoding="utf-8")
+        curr_active = "v0002"
+        target_version = "v0001"
+
     print(f"Current active: {curr_active}")
     print(f"Rollback target: {target_version}")
 
@@ -122,11 +138,14 @@ def main() -> None:
         sys.exit(1)
 
     print("Target validation: PASS")
+    print(f"Target Validation Passed: {result.target_validation_passed}")
     print(f"Pre-rollback replay hash: {result.pre_rollback_replay_hash}")
     print("Atomic switch: PASS")
     print(f"Post-rollback replay hash: {result.post_rollback_replay_hash}")
     print("Replay equality: PASS")
+    print(f"Replay Equality Verified: {result.replay_equality}")
     print(f"Active model: {result.active_restored}")
+    print(f"Active Restored: {result.active_restored}")
 
 
 if __name__ == "__main__":
