@@ -48,3 +48,11 @@ RAW DATA (./data)
 | Gate | `REJECT_COVERAGE` | Common population coverage below 90% |
 | Registry | `PROMOTED` | Active version updated atomically |
 | Registry | `ROLLED_BACK` | Prior version restored and validated |
+
+## 4-Hour EDA & Feature-Freeze Discipline (v25 Contract)
+
+Per v25 Architecture Section 2C & Section 2E:
+- **Strict 4-Hour Timebox**: Candidate feature discovery and exploratory data analysis were strictly timeboxed to four hours, inspecting only the Data Dictionary and development-period evidence dated on or before 2026-01-31.
+- **Holdout & Development Leakage Isolation**: The 59 grouped holdout gateways (`GROUP_HOLDOUT_IDS`) and post-cutoff evidence (`engineer_review_2026-02.xlsx`) were strictly quarantined and prohibited from being inspected, summarized, or allowed to motivate feature selection, weighting, or label definitions during EDA.
+- **Frozen Candidate Features**: At the four-hour deadline, feature definitions and candidate weights ($w_{\text{anomaly}} = 0.70$, $w_{\text{silence}} = 0.30$) were permanently frozen. Reopening features during development was prohibited, preventing post-hoc parameter snooping.
+
