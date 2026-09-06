@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RESQ Operations Console</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="console-container">
+    
+    <!-- 1. Header & Navigation -->
+    <header class="console-header">
+      <div class="brand-section">
+        <div class="brand-icon">RQ</div>
+        <div>
+          <h1 class="brand-title">RESQ Operations Console</h1>
+          <p class="brand-subtitle">Technician Allocation & Fault Mitigation Engine</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="info-label" style="font-size: 12px;">ACTIVE MODEL:</span>
+        <span id="active-model-badge" class="status-pill pill-active">LOADING...</span>
+      </div>
+    </header>
+
+    <!-- 2. KPI Summary Strip -->
+    <section class="kpi-strip" aria-label="Key Performance Indicators">
+      <div class="kpi-card">
+        <div class="kpi-label">Evaluation Week</div>
+        <div class="kpi-value" id="kpi-week">--</div>
+        <div class="kpi-subtext" id="kpi-week-sub">Scored Period (Monday 00:00 UTC)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Fleet Eligibility</div>
+        <div class="kpi-value" id="kpi-fleet">--</div>
+        <div class="kpi-subtext" id="kpi-fleet-sub">Master Ingestion & Date Filter</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Weekly Capacity</div>
+        <div class="kpi-value" id="kpi-capacity">--</div>
+        <div class="kpi-subtext" id="kpi-capacity-sub">15 visits @ €380/visit (€5,700/wk)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Data Health</div>
+        <div class="kpi-value" id="kpi-health">--</div>
+        <div class="kpi-subtext" id="kpi-health-sub">Telemetry Schema & Completeness</div>
+      </div>
+    </section>
+
+    <!-- 3. Dispatch Priority Table Section -->
+    <section class="card-section" aria-label="Dispatch Priority Table">
+      <div class="section-header">
+        <div class="section-title">
+          <span>⚡</span>
+          <span>Dispatch Priority (Top 15 Allocated Visits)</span>
+        </div>
+        <div class="week-selector-wrapper">
+          <label for="week-select" class="info-label">Week:</label>
+          <select id="week-select" class="select-control" aria-label="Select Evaluation Week">
+            <option value="">Loading weeks...</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="dispatch-table">
+          <thead>
+            <tr>
+              <th style="width: 70px;">Rank</th>
+              <th style="width: 170px;">Gateway ID</th>
+              <th style="width: 110px;">Risk Score</th>
+              <th>Operational Reason (Decision Audit)</th>
+            </tr>
+          </thead>
+          <tbody id="dispatch-tbody">
+            <tr>
+              <td colspan="4" class="empty-state">Loading dispatch priority rows...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4. Split Panels: Governance & Data Health -->
+    <div class="split-grid">
+      
+      <!-- Panel A: Model Governance -->
+      <section class="card-section" aria-label="Model Governance">
+        <div class="section-header">
+          <div class="section-title">
+            <span>⚖️</span>
+            <span>Model Governance & Promotion Gate</span>
+          </div>
+        </div>
+        <div class="panel-content">
+          <div class="info-row">
+            <span class="info-label">Active Model:</span>
+            <span class="info-value" id="gov-active">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Candidate Model:</span>
+            <span class="info-value" id="gov-candidate">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Temporal Improvement:</span>
+            <span class="info-value" id="gov-improvement">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Unseen Fleet Holdout:</span>
+            <span class="info-value" id="gov-holdout">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Gate Decision:</span>
+            <span class="info-value" id="gov-decision">--</span>
+          </div>
+          <div class="callout-box" id="gov-callout">
+            Loading governance audit details...
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel B: Data Health -->
+      <section class="card-section" aria-label="Data Health & Guards">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🛡️</span>
+            <span>Data Health & Completeness Guards</span>
+          </div>
+        </div>
+        <div class="panel-content">
+          <div class="info-row">
+            <span class="info-label">Telemetry Schema:</span>
+            <span class="info-value" id="health-schema">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Source Completeness:</span>
+            <span class="info-value" id="health-completeness">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Fleet Absence Rate:</span>
+            <span class="info-value" id="health-absence">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Reporting Gateways:</span>
+            <span class="info-value" id="health-reporting">--</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Invariant Protection:</span>
+            <span class="info-value" id="health-invariants">--</span>
+          </div>
+          <div class="callout-box info" id="health-callout">
+            Telemetry ingestion firewall active. Evaluator cutoff Monday 00:00:00 UTC enforced across all partitions.
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- 5. Backlog Strip -->
+    <section class="backlog-banner" aria-label="Backlog Fleet Risk">
+      <div>
+        <div class="kpi-label" style="color: #fca5a5;">BACKLOG FLEET RISK (RANKS 16+)</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+          Gateways deferred due to 15-visit weekly capacity limit (€5,700/wk ceiling)
+        </div>
+      </div>
+      <div class="backlog-stats">
+        <div class="backlog-stat-item">
+          <span class="backlog-stat-number" id="backlog-deferred">--</span>
+          <span class="info-label">Deferred</span>
+        </div>
+        <div class="backlog-stat-item">
+          <span class="backlog-stat-number" id="backlog-high-risk">--</span>
+          <span class="info-label">Elevated Risk</span>
+        </div>
+        <div class="backlog-stat-item">
+          <span class="backlog-stat-number" id="backlog-proxy-hours">--</span>
+          <span class="info-label">Proxy Hours</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Lifecycle & Rollback Strip -->
+    <section class="lifecycle-card" aria-label="Model Lifecycle and Rollback State">
+      <div>
+        <div class="kpi-label">LIFECYCLE PROVENANCE & ROLLBACK</div>
+        <div class="lifecycle-flow" style="margin-top: 6px;">
+          <span class="flow-step" id="flow-candidate">v0002 (Candidate)</span>
+          <span class="flow-arrow">➔</span>
+          <span class="flow-step pill-rejected" id="flow-gate">REJECTED</span>
+          <span class="flow-arrow">➔</span>
+          <span class="flow-step pill-active" id="flow-restored">v0001 RESTORED</span>
+        </div>
+      </div>
+      <div>
+        <div class="info-label" style="text-align: right; margin-bottom: 4px;">ATOMIC REPLAY VERIFICATION:</div>
+        <div style="text-align: right;">
+          <span id="lifecycle-replay" class="status-pill pill-pass">REPLAY EQUALITY: TRUE</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

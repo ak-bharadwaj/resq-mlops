@@ -14,6 +14,8 @@ if "%1"=="run" (
     %PYTHON% -m pytest tests/
 ) else if "%1"=="drift" (
     %PYTHON% scripts/check_drift.py --data ./data
+) else if "%1"=="frontend" (
+    %PYTHON% frontend/server.py --port 8080
 ) else (
     %PYTHON% scripts/make_submission.py --data ./data
 )

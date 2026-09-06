@@ -2,7 +2,7 @@
 
 PYTHON ?= python
 
-.PHONY: help run train predict promote rollback test drift clean
+.PHONY: help run train predict promote rollback test drift clean frontend
 
 help:
 	@echo "Available commands:"
@@ -13,6 +13,7 @@ help:
 	@echo "  make rollback   - Reversible atomic rollback demonstration"
 	@echo "  make test       - Run test suite"
 	@echo "  make drift      - Run structural schema drift check"
+	@echo "  make frontend   - Launch RESQ Operations Console web dashboard"
 
 run:
 	$(PYTHON) scripts/make_submission.py --data ./data
@@ -34,3 +35,7 @@ test:
 
 drift:
 	$(PYTHON) scripts/check_drift.py --data ./data
+
+frontend:
+	$(PYTHON) frontend/server.py --port 8080
+
