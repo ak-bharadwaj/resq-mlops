@@ -69,6 +69,29 @@ class TestFrontendShell(unittest.TestCase):
         self.assertIn('id="gov-improvement"', html_content)
         self.assertIn('id="gov-holdout"', html_content)
 
+        # Task 2: Upgraded Governance Centerpiece Elements
+        self.assertIn('id="gov-explainer-text"', html_content)
+        self.assertIn('id="gov-explainer-code"', html_content)
+        self.assertIn('id="dev-evidence-tbody"', html_content)
+        self.assertIn('id="dev-evidence-aggregate"', html_content)
+        self.assertIn('id="holdout-gateways"', html_content)
+        self.assertIn('id="holdout-active-missed"', html_content)
+        self.assertIn('id="holdout-cand-missed"', html_content)
+        self.assertIn('id="holdout-status-badge"', html_content)
+        self.assertIn('id="final-gate-deployment"', html_content)
+        self.assertIn('id="final-gate-protection"', html_content)
+
+        # Task 2: Interactive Drawers (Drilldown & Fail-Closed)
+        self.assertIn('id="evidence-drilldown-drawer"', html_content)
+        self.assertIn('id="drilldown-windows-container"', html_content)
+        self.assertIn('id="drilldown-holdout-container"', html_content)
+        self.assertIn('id="fail-closed-drawer"', html_content)
+
+        # Task 2: Evidence-Quality Indicators
+        self.assertIn('id="quality-dev-windows"', html_content)
+        self.assertIn('id="quality-holdout"', html_content)
+        self.assertIn('id="quality-fleet-truth"', html_content)
+
         self.assertIn('id="health-schema"', html_content)
         self.assertIn('id="health-completeness"', html_content)
         self.assertIn('id="health-absence"', html_content)
@@ -80,9 +103,17 @@ class TestFrontendShell(unittest.TestCase):
         self.assertIn('id="backlog-proxy-hours"', html_content)
 
         # 6. Lifecycle & Rollback Strip
+        self.assertIn('id="lifecycle-timeline"', html_content)
         self.assertIn('id="flow-candidate"', html_content)
         self.assertIn('id="flow-gate"', html_content)
         self.assertIn('id="flow-restored"', html_content)
+        self.assertIn('id="rollback-panel"', html_content)
+        self.assertIn('id="rollback-status-badge"', html_content)
+        self.assertIn('id="rollback-target-val"', html_content)
+        self.assertIn('id="rollback-atomic-switch"', html_content)
+        self.assertIn('id="rollback-replay-eq"', html_content)
+        self.assertIn('id="rollback-restored-ver"', html_content)
+        self.assertIn('id="rollback-reason"', html_content)
         self.assertIn('id="lifecycle-replay"', html_content)
 
     def test_promotion_artifact_derived_counts(self):
@@ -122,6 +153,57 @@ class TestFrontendShell(unittest.TestCase):
         res = check_replay_provenance()
         self.assertEqual(res["status"], "UNAVAILABLE")
         self.assertIn("not substantiated", res["reason"])
+        self.assertEqual(res["target_validation"], "UNAVAILABLE")
+        self.assertEqual(res["atomic_switch"], "UNAVAILABLE")
+        self.assertEqual(res["replay_equality"], "UNAVAILABLE")
+        self.assertEqual(res["restored_version"], "UNAVAILABLE")
+
+    def test_replay_provenance_substantiated_with_rollback_event(self):
+        """Verify replay provenance returns VERIFIED and properties when rollback is substantiated."""
+        from frontend.server import check_replay_provenance
+        simulated_history = [
+            '{"event": "INITIALIZED", "version": "v0001", "timestamp": "2026-09-05T00:00:00Z"}\n',
+            '{"event": "ROLLED_BACK", "version": "v0001", "previous_version": "v0002", "timestamp": "2026-09-05T01:00:00Z", "reason": "rollback to v0001"}\n'
+        ]
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, dir=self.repo_root) as tf:
+            tf.writelines(simulated_history)
+            temp_path = pathlib.Path(tf.name)
+
+        try:
+            with patch("frontend.server.REPO_ROOT", temp_path.parent):
+                with patch.object(pathlib.Path, "exists", return_value=True):
+                    with patch.object(pathlib.Path, "read_text", return_value="".join(simulated_history)):
+                        res = check_replay_provenance()
+                        self.assertEqual(res["status"], "VERIFIED")
+                        self.assertEqual(res["target_validation"], "VERIFIED")
+                        self.assertEqual(res["atomic_switch"], "VERIFIED")
+                        self.assertEqual(res["replay_equality"], "VERIFIED")
+                        self.assertEqual(res["restored_version"], "v0001")
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def test_no_hardcoded_metrics_in_javascript(self):
+        """Anti-fabrication test: assert app.js contains zero hard-coded numbers for governance metrics."""
+        import re
+        app_js_text = (self.static_dir / "app.js").read_text(encoding="utf-8")
+
+        # Specific metrics that must NEVER be hard-coded literals in JS
+        forbidden_patterns = [
+            r"\b71\b",          # active missed aggregate
+            r"\b60\b",          # candidate missed aggregate
+            r"\b15\.49\b",      # aggregate improvement percent
+            r"\b59\b",          # holdout gateway count
+            r"\b17\b",          # holdout active missed
+            r"\b18\b",          # holdout candidate missed
+        ]
+        for pat in forbidden_patterns:
+            matches = re.findall(pat, app_js_text)
+            self.assertEqual(
+                len(matches),
+                0,
+                f"Found hardcoded forbidden metric pattern '{pat}' in app.js! All metrics must be dynamically derived."
+            )
 
     def test_load_json_artifact_existing(self):
         """Verify load_json_artifact loads real existing artifacts accurately."""

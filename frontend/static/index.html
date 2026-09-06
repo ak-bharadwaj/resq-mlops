@@ -82,83 +82,261 @@
     </section>
 
     <!-- 4. Split Panels: Governance & Data Health -->
+    <!-- 4. Split Panels: Governance Centerpiece & Operations Support -->
     <div class="split-grid">
       
-      <!-- Panel A: Model Governance -->
-      <section class="card-section" aria-label="Model Governance">
+      <!-- Panel A: Model Governance Centerpiece -->
+      <section class="card-section" aria-label="Model Governance Centerpiece">
         <div class="section-header">
           <div class="section-title">
             <span>⚖️</span>
-            <span>Model Governance & Promotion Gate</span>
+            <span>Model Governance & Promotion Safety</span>
           </div>
+          <span class="status-pill pill-active" id="gov-header-status">PRODUCTION GUARDED</span>
         </div>
         <div class="panel-content">
+          
+          <!-- Explainer Block: Plain-Language Business Narrative -->
+          <div class="business-explainer-box">
+            <div class="explainer-heading">Why wasn't v0002 deployed?</div>
+            <p class="explainer-narrative" id="gov-explainer-text">
+              Loading operational decision narrative...
+            </p>
+            <div class="explainer-code-row">
+              <span class="code-tag-label">TECHNICAL REASON:</span>
+              <span class="status-pill pill-rejected" id="gov-explainer-code">REJECT_GROUPED_DISAGREEMENT</span>
+            </div>
+          </div>
+
+          <!-- Model Identities -->
+          <div class="governance-models-row">
+            <div class="model-identity-col">
+              <div class="kpi-label">Active Model</div>
+              <div class="model-version-title" id="gov-active">--</div>
+            </div>
+            <div class="model-vs-divider">VS</div>
+            <div class="model-identity-col">
+              <div class="kpi-label">Candidate</div>
+              <div class="model-version-title" id="gov-candidate">--</div>
+            </div>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Development Evidence Summary -->
+          <div class="governance-block">
+            <div class="block-title-row">
+              <span class="block-title">DEVELOPMENT EVIDENCE (Rolling Windows)</span>
+              <span class="block-badge" id="gov-improvement">--</span>
+            </div>
+            <table class="evidence-mini-table">
+              <thead>
+                <tr>
+                  <th>Window</th>
+                  <th>Active Missed</th>
+                  <th>Candidate Missed</th>
+                  <th>Outcome</th>
+                </tr>
+              </thead>
+              <tbody id="dev-evidence-tbody">
+                <tr>
+                  <td colspan="4" class="empty-mini">Loading development windows...</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="aggregate-summary-row" id="dev-evidence-aggregate">
+              <span class="info-label">Aggregate Result:</span>
+              <span class="info-value" id="dev-aggregate-text">--</span>
+            </div>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Unseen Grouped Holdout -->
+          <div class="governance-block">
+            <div class="block-title-row">
+              <span class="block-title">UNSEEN GROUPED HOLDOUT</span>
+              <span class="status-pill pill-rejected" id="holdout-status-badge">Regression detected</span>
+            </div>
+            <div class="holdout-metrics-grid">
+              <div class="holdout-stat-card">
+                <div class="kpi-label">Holdout Scope</div>
+                <div class="holdout-stat-val" id="holdout-gateways">--</div>
+                <div class="kpi-subtext">Physically distinct hardware</div>
+              </div>
+              <div class="holdout-stat-card">
+                <div class="kpi-label">Active Missed</div>
+                <div class="holdout-stat-val" id="holdout-active-missed">--</div>
+                <div class="kpi-subtext">Baseline 3-Sigma faults</div>
+              </div>
+              <div class="holdout-stat-card">
+                <div class="kpi-label">Candidate Missed</div>
+                <div class="holdout-stat-val" style="color: var(--danger);" id="holdout-cand-missed">--</div>
+                <div class="kpi-subtext">Weighted Multi-Signal faults</div>
+              </div>
+            </div>
+            <div id="gov-holdout" style="display: none;">--</div>
+          </div>
+
+          <hr class="section-divider">
+
+          <!-- Final Gate Verdict Banner -->
           <div class="governance-verdict-banner" id="gov-verdict-banner">
             <div class="verdict-tag-row">
               <span class="status-pill pill-rejected" id="gov-verdict-pill">GATE: REJECTED</span>
               <span class="verdict-reason-code" id="gov-verdict-code">REJECT_GROUPED_DISAGREEMENT</span>
             </div>
+            <div class="final-gate-statement">
+              <strong id="final-gate-deployment" style="color: #fca5a5;">Candidate NOT deployed</strong> —
+              <span id="final-gate-protection">Active v0001 remains protected</span>
+            </div>
             <div class="verdict-summary" id="gov-verdict-summary">
-              Candidate v0002 was rejected: holdout fleet regression (18 vs 17 missed broken weeks). Active v0001 remains safely in production.
+              Loading promotion audit summary...
+            </div>
+            <div class="info-row" style="margin-top: 4px; border-bottom: none;">
+              <span class="info-label">Promotion Gate Rule:</span>
+              <span class="info-value" id="gov-rule" style="font-size: 11px; color: var(--text-dim);">≥10% Cost Diff & Holdout Agreement</span>
             </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">Active Model:</span>
-            <span class="info-value" id="gov-active">--</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Candidate Model:</span>
-            <span class="info-value" id="gov-candidate">--</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Temporal Improvement:</span>
-            <span class="info-value" id="gov-improvement">--</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Unseen Fleet Holdout:</span>
-            <span class="info-value" id="gov-holdout">--</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Promotion Gate Rule:</span>
-            <span class="info-value" id="gov-rule" style="font-size: 11px; color: var(--text-dim);">≥10% Cost Diff & Holdout Agreement</span>
-          </div>
+
+          <!-- Expandable Evidence Drill-Down Drawer -->
+          <details class="accordion-drawer" id="evidence-drilldown-drawer">
+            <summary class="accordion-summary">
+              <span class="accordion-title">🔍 Inspect Detailed Evaluation Evidence (Per-Window & Holdout)</span>
+              <span class="accordion-icon">▾</span>
+            </summary>
+            <div class="accordion-content">
+              <div class="drilldown-cards-grid" id="drilldown-windows-container">
+                <!-- Dynamically populated per window -->
+                <div class="drilldown-item">Loading window drilldown...</div>
+              </div>
+              
+              <div class="drilldown-holdout-box" id="drilldown-holdout-container">
+                <!-- Dynamically populated holdout drilldown -->
+                <div class="drilldown-item">Loading holdout drilldown...</div>
+              </div>
+
+              <div class="callout-box" style="margin-top: 10px;">
+                <strong>Why this matters:</strong> The candidate did not generalize to unseen hardware. Deploying v0002 would cause field technician visit regressions on unseen physical installations.
+              </div>
+            </div>
+          </details>
+
+          <!-- Expandable Fail-Closed Safety Drawer -->
+          <details class="accordion-drawer" id="fail-closed-drawer">
+            <summary class="accordion-summary">
+              <span class="accordion-title">🛡️ Why the Gate Fails Closed (Safety Architecture)</span>
+              <span class="accordion-icon">▾</span>
+            </summary>
+            <div class="accordion-content">
+              <div class="fail-closed-flow">
+                <div class="fc-step">
+                  <div class="fc-pill pill-rejected">Candidate Regression</div>
+                  <div class="fc-desc">Holdout evaluation detects +1 missed broken week on unseen gateways</div>
+                </div>
+                <div class="fc-arrow">➔</div>
+                <div class="fc-step">
+                  <div class="fc-pill pill-rejected">Promotion Blocked</div>
+                  <div class="fc-desc">Gate trips REJECT_GROUPED_DISAGREEMENT; execution halts safely</div>
+                </div>
+                <div class="fc-arrow">➔</div>
+                <div class="fc-step">
+                  <div class="fc-pill pill-safe">Active Pointer Unchanged</div>
+                  <div class="fc-desc">registry/active.json untouched; remains pointing to validated v0001</div>
+                </div>
+                <div class="fc-arrow">➔</div>
+                <div class="fc-step">
+                  <div class="fc-pill pill-active">Operations Protected</div>
+                  <div class="fc-desc">Technicians dispatched strictly via verified v0001 without disruption</div>
+                </div>
+              </div>
+              <div class="callout-box info" style="margin-top: 12px;">
+                <strong>Fail-Closed Guarantee:</strong> The production registry pointer cannot be mutated by failed promotions, corrupt artifacts, or incomplete telemetry. Any ambiguity aborts promotion immediately and preserves the incumbent model.
+              </div>
+            </div>
+          </details>
+
         </div>
       </section>
 
-      <!-- Panel B: Data Health -->
-      <section class="card-section" aria-label="Data Health & Guards">
-        <div class="section-header">
-          <div class="section-title">
-            <span>🛡️</span>
-            <span>Data Health & Completeness Guards</span>
+      <!-- Panel B: Right Column (Data Health & Evidence Credibility) -->
+      <div class="support-column">
+        
+        <!-- Data Health & Completeness Guards -->
+        <section class="card-section" aria-label="Data Health & Guards">
+          <div class="section-header">
+            <div class="section-title">
+              <span>🛡️</span>
+              <span>Data Health & Completeness Guards</span>
+            </div>
           </div>
-        </div>
-        <div class="panel-content">
-          <div class="info-row">
-            <span class="info-label">Telemetry Schema:</span>
-            <span class="info-value" id="health-schema">--</span>
+          <div class="panel-content">
+            <div class="info-row">
+              <span class="info-label">Telemetry Schema:</span>
+              <span class="info-value" id="health-schema">--</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Source Completeness:</span>
+              <span class="info-value" id="health-completeness">--</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Fleet Absence Rate:</span>
+              <span class="info-value" id="health-absence">--</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Reporting Gateways:</span>
+              <span class="info-value" id="health-reporting">--</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Invariant Protection:</span>
+              <span class="info-value" id="health-invariants">--</span>
+            </div>
+            <div class="callout-box info" id="health-callout">
+              Telemetry ingestion firewall active. Evaluator cutoff Monday 00:00:00 UTC enforced across all partitions.
+            </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">Source Completeness:</span>
-            <span class="info-value" id="health-completeness">--</span>
+        </section>
+
+        <!-- Evidence-Quality Indicator -->
+        <section class="card-section" aria-label="Evidence Credibility Matrix">
+          <div class="section-header">
+            <div class="section-title">
+              <span>📊</span>
+              <span>Evidence-Quality Indicator</span>
+            </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">Fleet Absence Rate:</span>
-            <span class="info-value" id="health-absence">--</span>
+          <div class="panel-content">
+            <div class="quality-item">
+              <div class="quality-header-row">
+                <span class="quality-name">Development Windows</span>
+                <span class="status-pill pill-pass" id="quality-dev-windows">STRONG</span>
+              </div>
+              <div class="quality-desc">Temporal backtest over 3 expanding rolling windows (Nov, Dec, Jan)</div>
+            </div>
+
+            <div class="quality-item">
+              <div class="quality-header-row">
+                <span class="quality-name">Grouped Holdout</span>
+                <span class="status-pill pill-pass" id="quality-holdout">STRONG</span>
+              </div>
+              <div class="quality-desc">Physically isolated hardware evaluation on 59 unseen gateways</div>
+            </div>
+
+            <div class="quality-item">
+              <div class="quality-header-row">
+                <span class="quality-name">Fleet-Wide Ground Truth</span>
+                <span class="status-pill pill-unavailable" id="quality-fleet-truth">NOT AVAILABLE</span>
+              </div>
+              <div class="quality-desc">Production labels do not exist post-cutoff; truthful nullability strictly enforced</div>
+            </div>
+
+            <div class="callout-box info" style="font-size: 11.5px;">
+              <strong>Truthful Nullability:</strong> Operational decisions are substantiated solely by verified evidence. Never claim certainty where telemetry or ground truth is absent.
+            </div>
           </div>
-          <div class="info-row">
-            <span class="info-label">Reporting Gateways:</span>
-            <span class="info-value" id="health-reporting">--</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Invariant Protection:</span>
-            <span class="info-value" id="health-invariants">--</span>
-          </div>
-          <div class="callout-box info" id="health-callout">
-            Telemetry ingestion firewall active. Evaluator cutoff Monday 00:00:00 UTC enforced across all partitions.
-          </div>
-        </div>
-      </section>
+        </section>
+
+      </div>
 
     </div>
 
@@ -186,25 +364,86 @@
       </div>
     </section>
 
-    <!-- 6. Lifecycle & Rollback Strip -->
-    <section class="lifecycle-card" aria-label="Model Lifecycle and Rollback State">
-      <div>
-        <div class="kpi-label">LIFECYCLE PROVENANCE & ROLLBACK</div>
-        <div class="lifecycle-flow" style="margin-top: 6px;">
-          <span class="flow-step" id="flow-candidate">v0002 (Candidate)</span>
-          <span class="flow-arrow">➔</span>
-          <span class="flow-step pill-rejected" id="flow-gate">REJECTED</span>
-          <span class="flow-arrow">➔</span>
-          <span class="flow-step pill-active" id="flow-restored">v0001 RESTORED</span>
+    <!-- 6. Lifecycle & Rollback Section (Split: Visual Timeline & Safety Panel) -->
+    <div class="split-grid" style="grid-template-columns: 1fr 1fr;">
+      
+      <!-- Visual Lifecycle Timeline -->
+      <section class="card-section" aria-label="Visual Lifecycle Timeline">
+        <div class="section-header">
+          <div class="section-title">
+            <span>🔄</span>
+            <span>Model Lifecycle Journey</span>
+          </div>
         </div>
-      </div>
-      <div>
-        <div class="info-label" style="text-align: right; margin-bottom: 4px;">DETERMINISTIC REPLAY PROVENANCE:</div>
-        <div style="text-align: right;">
-          <span id="lifecycle-replay" class="status-pill pill-unavailable">CHECKING...</span>
+        <div class="panel-content" style="justify-content: center;">
+          <div class="lifecycle-timeline-container" id="lifecycle-timeline">
+            <div class="timeline-step">
+              <div class="timeline-pill pill-candidate" id="flow-candidate">v0002 CANDIDATE</div>
+              <div class="timeline-sub">Weighted Multi-Signal</div>
+            </div>
+            <div class="timeline-connector">➔</div>
+            <div class="timeline-step">
+              <div class="timeline-pill pill-safe">EVIDENCE GATE</div>
+              <div class="timeline-sub">3 Windows + Holdout</div>
+            </div>
+            <div class="timeline-connector">➔</div>
+            <div class="timeline-step">
+              <div class="timeline-pill pill-rejected" id="flow-gate">REJECTED</div>
+              <div class="timeline-sub">Grouped Disagreement</div>
+            </div>
+            <div class="timeline-connector">➔</div>
+            <div class="timeline-step">
+              <div class="timeline-pill pill-active" id="flow-restored">v0001 ACTIVE</div>
+              <div class="timeline-sub">Protected Baseline</div>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <!-- Rollback Safety & Proof Panel -->
+      <section class="card-section" id="rollback-panel" aria-label="Rollback Safety Properties">
+        <div class="section-header">
+          <div class="section-title">
+            <span>⏪</span>
+            <span>Rollback Safety & Proof Panel</span>
+          </div>
+          <span id="rollback-status-badge" class="status-pill pill-unavailable">CHECKING...</span>
+        </div>
+        <div class="panel-content">
+          <div class="rollback-properties-grid">
+            <div class="rb-prop-row">
+              <span class="info-label">Target Validation:</span>
+              <span class="info-value" id="rollback-target-val">
+                <span class="status-pill pill-unavailable">UNAVAILABLE</span>
+              </span>
+            </div>
+            <div class="rb-prop-row">
+              <span class="info-label">Atomic Pointer Switch:</span>
+              <span class="info-value" id="rollback-atomic-switch">
+                <span class="status-pill pill-unavailable">UNAVAILABLE</span>
+              </span>
+            </div>
+            <div class="rb-prop-row">
+              <span class="info-label">Replay Equality:</span>
+              <span class="info-value" id="rollback-replay-eq">
+                <span class="status-pill pill-unavailable">UNAVAILABLE</span>
+              </span>
+            </div>
+            <div class="rb-prop-row">
+              <span class="info-label">Restored Version:</span>
+              <span class="info-value" id="rollback-restored-ver">
+                <span class="status-pill pill-unavailable">UNAVAILABLE</span>
+              </span>
+            </div>
+          </div>
+          <div class="callout-box info" id="rollback-reason" style="font-size: 12px; margin-top: 4px;">
+            Deterministic replay provenance verified via transactional pointer restoration.
+          </div>
+          <div id="lifecycle-replay" style="display: none;"></div>
+        </div>
+      </section>
+
+    </div>
 
   </div>
 
