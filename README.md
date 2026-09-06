@@ -17,10 +17,11 @@ pip install -r requirements.lock
 make run
 ```
 
-`make run` executes the following single pipeline (Task 1 Foundation):
-1. Validates the execution environment and required data files.
-2. Loads master data with CP1252 encoding and ID normalization.
-3. Verifies gateway eligibility foundation across all 8 required challenge weeks (Mondays: 2026-02-02 through 2026-03-23).
+`make run` executes the canonical reviewer entry point:
+1. Validates the execution environment and loads master data with CP1252 encoding and ID normalization.
+2. Runs active production inference (baseline v0001) across all 8 scored challenge weeks (Mondays: 2026-02-02 through 2026-03-23).
+3. Emits `predictions.csv` (strictly 120 dispatches: 8 weeks × 15 top visits) and `backlog_report.json` (deferred gateway risk ranking).
+4. Enforces submission schema validity via `validate_submission.py`.
 
 ## Architecture & Lifecycle Commands
 
@@ -43,7 +44,7 @@ resq-mlops/
 |   |-- registry/      # Filesystem registry, atomic promotion, rollback
 |   `-- monitoring/    # Structural schema drift monitor, reporting
 |-- scripts/           # train.py, predict.py, make_submission.py, promote.py, rollback.py, check_drift.py
-|-- models/            # Immutable model packages (v0001, v0002)
+|-- models/            # Immutable model packages (v0001, v0002, v_promotable)
 |-- registry/          # active.json, history.jsonl
 |-- policy.json        # Frozen evaluation and retraining governance
 |-- monitoring/        # schema_baseline.json, drift_reports/

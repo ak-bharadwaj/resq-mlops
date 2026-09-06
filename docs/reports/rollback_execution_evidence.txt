@@ -1,5 +1,8 @@
 ================================================================================
-RESQ-MLOps Authoritative Rollback & Artifact Integrity Execution Evidence
+[SUPERSEDED] RESQ-MLOps Authoritative Rollback & Artifact Integrity Evidence
+NOTE: Superseded by docs/reports/final_submission_evidence.txt (authoritative
+final submission certification, live v_promotable -> v0001 rollback audit trail,
+and full 263-test passing suite). Retained for root cause forensic provenance.
 ================================================================================
 Timestamp (UTC): 2026-09-06T12:50:00Z
 Python Version: Python 3.14.5 (tags/v3.14.5:0a79b2b, Feb 10 2026, 19:44:40) [MSC v.1944 64 bit (AMD64)]
