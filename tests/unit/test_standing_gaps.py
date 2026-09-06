@@ -412,3 +412,245 @@ def test_run_json_provenance_contract(tmp_path: pathlib.Path, repo_root: pathlib
         assert real_loaded["replay_hash"] != real_loaded["predictions_file_hash"]
 
 
+# ==============================================================================
+# Targeted 15-Row Regression Tests: FAQ 3.4 & v25 Safety Contract
+# ==============================================================================
+
+def _create_synthetic_15row_dataset(
+    base_dir: pathlib.Path,
+    n_gateways: int = 20,
+    n_anomalous: int = 5,
+    monday_str: str = "2026-02-02",
+) -> pathlib.Path:
+    """Helper to create a self-contained synthetic dataset with controlled anomaly rates."""
+    import pandas as pd
+
+    data_dir = base_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    monday = dt.date.fromisoformat(monday_str)
+    cutoff_utc = dt.datetime(monday.year, monday.month, monday.day, 0, 0, 0, tzinfo=dt.timezone.utc)
+    start_utc = cutoff_utc - dt.timedelta(days=28)
+
+    # 1. Master: n_gateways installed well before evaluation Monday
+    master_rows = [
+        "gateway_id,tenant,site_type,region,hw_model,antenna_type,fw_version,installed_on,n_meters_installed"
+    ]
+    gateways = [f"0639EA{i:06X}" for i in range(1, n_gateways + 1)]
+    for gid in gateways:
+        master_rows.append(f"{gid},tenant_a,Rooftop,Baden,Modell_A,Stab,v1.0,2020-01-01,100")
+
+    (data_dir / "gateway_master.csv").write_bytes("\n".join(master_rows).encode("cp1252"))
+
+    # 2. Telemetry: hourly records over 28 days for all gateways
+    n_hours = 28 * 24
+    timestamps = [start_utc + dt.timedelta(hours=h) for h in range(n_hours)]
+    ts_strings = [ts.strftime("%Y-%m-%dT%H:%M:%SZ") for ts in timestamps]
+
+    records = []
+    for idx, gid in enumerate(gateways):
+        is_anomalous = idx < n_anomalous
+        for h_idx, ts_str in enumerate(ts_strings):
+            if is_anomalous and h_idx >= (21 * 24):
+                # Breach 3-sigma in recent 7 days
+                offline = 1800.0 if (h_idx % 6 == 0) else 0.0
+                disc = 5.0 if (h_idx % 6 == 0) else 0.0
+                reboot = 1.0 if (h_idx % 12 == 0) else 0.0
+            else:
+                offline = 0.0
+                disc = 0.0
+                reboot = 0.0
+
+            records.append({
+                "gateway_id": gid,
+                "ts_utc": ts_str,
+                "offline_duration_sec": float(offline),
+                "disconnection_cnt": float(disc),
+                "reboot_cnt": float(reboot),
+            })
+
+    telemetry_df = pd.DataFrame(records)
+    telemetry_dir = data_dir / "telemetry"
+    telemetry_dir.mkdir(parents=True, exist_ok=True)
+    telemetry_df.to_parquet(telemetry_dir / "part-00000.parquet", index=False)
+
+    return data_dir
+
+
+def test_situation_a_sub_threshold_scores_fill_exactly_15_rows(tmp_path: pathlib.Path):
+    """Situation A (FAQ 3.4): >= 15 valid scoreable gateways, but < 15 cross confidence threshold.
+
+    Verifies:
+    1. Exactly 15 valid prediction rows produced.
+    2. Ranks 1-5 contain the 5 confidence-qualified gateways (score > 0).
+    3. Ranks 6-15 contain valid scoreable gateways with score == 0.0 (next-highest valid scores).
+    4. Deterministic canonical gateway ID tie-breaking among 0.0-score gateways.
+    5. Zero gateway fabrication, zero duplicate gateway IDs.
+    6. Remaining 5 gateways (ranks 16-20) safely routed to backlog_report.json.
+    """
+    from app.model.predict import predict_week
+
+    data_dir = _create_synthetic_15row_dataset(tmp_path, n_gateways=20, n_anomalous=5)
+
+    res = predict_week(data_dir=data_dir, week_start="2026-02-02", active_version="v0001")
+    predictions = res["predictions"]
+    backlog = res["backlog_report"]
+
+    # 1. Exactly 15 rows
+    assert len(predictions) == 15, f"Expected exactly 15 predictions, got {len(predictions)}"
+
+    # 2. Validate ranks 1..15 sequential
+    ranks = [p["rank"] for p in predictions]
+    assert ranks == list(range(1, 16))
+
+    # 3. Exactly 15 unique, valid gateways (no fabrication, no duplicates)
+    pred_gids = [p["gateway_id"] for p in predictions]
+    assert len(set(pred_gids)) == 15
+    for gid in pred_gids:
+        assert gid.startswith("0639EA")
+
+    # 4. Ranks 1-5 have positive scores (crossed confidence threshold)
+    for p in predictions[:5]:
+        assert p["score"] > 0.0, f"Gateway {p['gateway_id']} rank {p['rank']} should have score > 0"
+        assert "hour(s) beyond 3 sigma" in p["reason"]
+
+    # 5. Ranks 6-15 have next-highest valid scores (score = 0.0, sub-threshold)
+    for p in predictions[5:]:
+        assert p["score"] == 0.0, f"Gateway {p['gateway_id']} rank {p['rank']} should have score 0.0"
+
+    # 6. Tie-breaking among 0.0 scores is ascending by canonical gateway_id
+    zero_score_gids = [p["gateway_id"] for p in predictions[5:]]
+    assert zero_score_gids == sorted(zero_score_gids)
+
+    # 7. Deferred gateways in backlog report
+    assert backlog["selected_count"] == 15
+    assert backlog["deferred_count"] == 5
+    assert len(backlog["deferred_gateways"]) == 5
+    assert [d["rank"] for d in backlog["deferred_gateways"]] == [16, 17, 18, 19, 20]
+
+
+def test_situation_a_weighted_multi_signal_sub_threshold_scores_fill_15(tmp_path: pathlib.Path):
+    """Situation A under v0002 candidate (WeightedMultiSignalScorer).
+
+    Verifies candidate model also produces exactly 15 rows when only 3 gateways have
+    anomalies and the rest have zero-risk baseline telemetry.
+    """
+    from app.model.predict import predict_week
+
+    data_dir = _create_synthetic_15row_dataset(tmp_path, n_gateways=20, n_anomalous=3)
+
+    res = predict_week(data_dir=data_dir, week_start="2026-02-02", active_version="v0002")
+    predictions = res["predictions"]
+
+    assert len(predictions) == 15
+    assert [p["rank"] for p in predictions] == list(range(1, 16))
+
+    # Top 3 crossed confidence threshold
+    for p in predictions[:3]:
+        assert p["score"] > 0.0
+
+    # Ranks 4-15 filled by next-highest valid scores (0.0)
+    for p in predictions[3:]:
+        assert p["score"] == 0.0
+
+    # All unique, non-fabricated
+    assert len(set(p["gateway_id"] for p in predictions)) == 15
+
+
+def test_situation_b_insufficient_eligible_gateways_fails_closed(tmp_path: pathlib.Path):
+    """Situation B (v25 Safety Contract): < 15 valid eligible gateways in master.
+
+    Verifies:
+    1. Pipeline raises InsufficientEligibleGatewaysError (INSUFFICIENT_ELIGIBLE_GATEWAYS).
+    2. Does NOT fabricate fictional gateways to pad to 15.
+    3. Does NOT duplicate existing gateways to pad to 15.
+    """
+    from app.model.predict import InsufficientEligibleGatewaysError, predict_week
+
+    # Only 10 eligible gateways in master (< 15 required)
+    data_dir = _create_synthetic_15row_dataset(tmp_path, n_gateways=10, n_anomalous=3)
+
+    with pytest.raises(InsufficientEligibleGatewaysError) as exc_info:
+        predict_week(data_dir=data_dir, week_start="2026-02-02", active_version="v0001")
+
+    err_msg = str(exc_info.value)
+    assert "Only 10 eligible gateways" in err_msg
+    assert "required 15" in err_msg
+
+
+def test_situation_b_insufficient_reporting_gateways_fails_closed(tmp_path: pathlib.Path):
+    """Situation B: 20 eligible gateways in master, but only 8 have telemetry (< 15 scoreable).
+
+    Verifies:
+    1. Pipeline fails closed (cannot fulfill required 15 visits).
+    2. Zero gateway fabrication, zero duplication.
+    """
+    import pandas as pd
+    from app.data.quality import SourceCompletenessError
+    from app.model.predict import InsufficientEligibleGatewaysError, predict_week
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # 20 gateways in master
+    master_rows = [
+        "gateway_id,tenant,site_type,region,hw_model,antenna_type,fw_version,installed_on,n_meters_installed"
+    ]
+    for i in range(1, 21):
+        master_rows.append(f"0639EA{i:06X},tenant_a,Rooftop,Baden,Modell_A,Stab,v1.0,2020-01-01,100")
+    (data_dir / "gateway_master.csv").write_bytes("\n".join(master_rows).encode("cp1252"))
+
+    # Only 8 gateways report telemetry
+    cutoff = dt.datetime(2026, 2, 2, 0, 0, 0, tzinfo=dt.timezone.utc)
+    start = cutoff - dt.timedelta(days=28)
+    records = []
+    for i in range(1, 9):
+        gid = f"0639EA{i:06X}"
+        for h in range(28 * 24):
+            ts = start + dt.timedelta(hours=h)
+            records.append({
+                "gateway_id": gid,
+                "ts_utc": ts.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "offline_duration_sec": 0.0,
+                "disconnection_cnt": 0.0,
+                "reboot_cnt": 0.0,
+            })
+    telemetry_dir = data_dir / "telemetry"
+    telemetry_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(records).to_parquet(telemetry_dir / "part-00000.parquet", index=False)
+
+    # Must fail closed: either SourceCompletenessError or InsufficientEligibleGatewaysError
+    with pytest.raises((InsufficientEligibleGatewaysError, SourceCompletenessError)):
+        predict_week(data_dir=data_dir, week_start="2026-02-02", active_version="v0001")
+
+
+def test_predict_cli_situation_a_e2e_produces_valid_submission(tmp_path: pathlib.Path, repo_root: pathlib.Path):
+    """E2E CLI integration test: scripts/predict.py on Situation A data produces 15 valid rows."""
+    import pandas as pd
+
+    data_dir = _create_synthetic_15row_dataset(tmp_path, n_gateways=20, n_anomalous=5)
+
+    out_csv = tmp_path / "predictions_week1.csv"
+    backlog_json = tmp_path / "backlog_week1.json"
+
+    cmd = [
+        sys.executable,
+        str(repo_root / "scripts" / "predict.py"),
+        "--data", str(data_dir),
+        "--week", "2026-02-02",
+        "--output", str(out_csv),
+        "--backlog-report", str(backlog_json),
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True, cwd=repo_root)
+    assert res.returncode == 0, f"CLI failed with stderr: {res.stderr}"
+
+    # Verify CSV content
+    df = pd.read_csv(out_csv)
+    assert len(df) == 15
+    assert list(df.columns) == ["week_start", "rank", "gateway_id", "score", "reason"]
+    assert list(df["rank"]) == list(range(1, 16))
+    assert df["gateway_id"].nunique() == 15
+    assert (df["score"] >= 0.0).all()
+    assert not df["score"].isna().any()
+
+

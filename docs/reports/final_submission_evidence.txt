@@ -10,7 +10,7 @@ Remote Repository:           https://github.com/ak-bharadwaj/resq-mlops.git (PUB
 Operating System:            Windows 11 / win32
 Python Interpreter:          C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe (Python 3.14.5)
 Test Framework:              pytest 9.0.3, hypothesis 6.165.9, schemathesis 4.24.3
-Full Regression Test Count:  263 passed, 0 failed, 0 skipped in 549.72s (0:09:09)
+Full Regression Test Count:  268 passed, 0 failed, 0 skipped in 448.00s (0:07:28)
 
 ================================================================================
 EXECUTIVE SUMMARY: FINAL CONTRACT RESTORATION & AUDIT CLOSURE
@@ -110,17 +110,22 @@ hypothesis profile 'default'
 rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
 configfile: pyproject.toml
 plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
-collecting ... collected 7 items
+collecting ... collected 12 items
 
-tests/unit/test_standing_gaps.py::test_missing_telemetry_fails_nonzero PASSED [ 14%]
-tests/unit/test_standing_gaps.py::test_clean_environment_make_run PASSED [ 28%]
-tests/unit/test_standing_gaps.py::test_holdout_gateway_not_used_for_development_selection PASSED [ 42%]
-tests/unit/test_standing_gaps.py::test_selection_time_holdout_provenance_and_isolation PASSED [ 57%]
-tests/unit/test_standing_gaps.py::test_make_run_makefile_contract PASSED [ 71%]
-tests/unit/test_standing_gaps.py::test_holdout_protection_blocks_all_group_holdout_gateways PASSED [ 85%]
-tests/unit/test_standing_gaps.py::test_run_json_provenance_contract PASSED [100%]
+tests/unit/test_standing_gaps.py::test_missing_telemetry_fails_nonzero PASSED [  8%]
+tests/unit/test_standing_gaps.py::test_clean_environment_make_run PASSED [ 16%]
+tests/unit/test_standing_gaps.py::test_holdout_gateway_not_used_for_development_selection PASSED [ 25%]
+tests/unit/test_standing_gaps.py::test_selection_time_holdout_provenance_and_isolation PASSED [ 33%]
+tests/unit/test_standing_gaps.py::test_make_run_makefile_contract PASSED [ 41%]
+tests/unit/test_standing_gaps.py::test_holdout_protection_blocks_all_group_holdout_gateways PASSED [ 50%]
+tests/unit/test_standing_gaps.py::test_run_json_provenance_contract PASSED [ 58%]
+tests/unit/test_standing_gaps.py::test_situation_a_sub_threshold_scores_fill_exactly_15_rows PASSED [ 66%]
+tests/unit/test_standing_gaps.py::test_situation_a_weighted_multi_signal_sub_threshold_scores_fill_15 PASSED [ 75%]
+tests/unit/test_standing_gaps.py::test_situation_b_insufficient_eligible_gateways_fails_closed PASSED [ 83%]
+tests/unit/test_standing_gaps.py::test_situation_b_insufficient_reporting_gateways_fails_closed PASSED [ 91%]
+tests/unit/test_standing_gaps.py::test_predict_cli_situation_a_e2e_produces_valid_submission PASSED [100%]
 
-======================== 7 passed in 80.90s (0:01:20) =========================
+======================== 12 passed in 80.04s (0:01:20) =========================
 Exit code: 0
 
 ================================================================================
@@ -184,11 +189,11 @@ COMMAND 5: FULL REPOSITORY REGRESSION SUITE
 ================================================================================
 $ python -m pytest tests/ -q
 
-........................................................................ [ 27%]
-........................................................................ [ 54%]
-........................................................................ [ 82%]
-...............................................                          [100%]
-263 passed in 549.72s (0:09:09)
+........................................................................ [ 26%]
+........................................................................ [ 53%]
+........................................................................ [ 80%]
+....................................................                     [100%]
+268 passed in 448.00s (0:07:28)
 Exit code: 0
 
 ================================================================================
@@ -332,6 +337,6 @@ Requirement / Invariant                               Status  Evidence Reference
 22. Monday 00:00:00 UTC Temporal Ingestion Firewall  PASS    app/data/loader.py, test_telemetry_firewall.py
 23. Strict Canonical Gateway ID Invariant            PASS    app/data/loader.py, test_id_normalization.py
 24. Backlog Economics Report (ranks 16+)             PASS    backlog_report.json, app/model/predict.py
-25. Full Regression Suite Green (263 / 263 tests)    PASS    pytest tests/ -q (263 passed in 549.72s)
+25. Full Regression Suite Green (268 / 268 tests)    PASS    pytest tests/ -q (268 passed in 448.00s)
 ================================================================================
 
