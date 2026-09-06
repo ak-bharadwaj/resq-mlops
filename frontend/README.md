@@ -41,7 +41,7 @@ Then open your browser to:
 | **2. Dispatch Priority Table** | `.card-section`, `table` | Ranks 1–15 prioritized gateway visits for the selected Monday cutoff, with risk scores and operational decision audits (<=300 chars). Includes an 8-week dropdown selector. Consumes `predictions.csv`. |
 | **3. Model Governance & Safety Gate** | `.split-grid` (Left Panel) | Compares Active (`v0001`) vs Candidate (`v0002`), displaying temporal improvement (`+15.49%`), unseen holdout fleet agreement (`18 vs 17 missed`), and gate verdict (`REJECTED`). Consumes `runs/promotion/promotion_decision_v0002.json`. |
 | **4. Data Health & Completeness** | `.split-grid` (Right Panel) | Telemetry schema validation, source completeness guard (`SAFE`), fleet absence rate (`16.53%`), and firewall boundary enforcement. Consumes `monitoring/drift_reports/schema_check.json`. |
-| **5. Backlog Fleet Risk** | `.backlog-banner` | Accounting for deferred gateways (ranks 16+) to protect operational budget: 275 deferred, 245 elevated risk, and 1,523 proxy hours. Consumes `backlog_report.json`. |
+| **5. Backlog Fleet Risk** | `.backlog-banner` | Accounting for deferred gateways (ranks 16+) to protect operational budget: 275 deferred, 245 elevated risk, and 1,523 proxy hours. Consumes `backlog_report.json`. Includes interactive Backlog Intelligence modal and Gateway Deferral Inspector. |
 | **6. Lifecycle & Rollback Strip** | `.lifecycle-card` | Visualizes the candidate evaluation cycle (`v0002 → REJECTED → v0001 RESTORED`) and atomic replay verification (`REPLAY EQUALITY: TRUE`). Consumes `registry/active.json` & `runs/prediction/run.json`. |
 
 ---
@@ -51,6 +51,8 @@ Then open your browser to:
 - `GET /api/health`: Health ping (`{"status": "OK", "service": "RESQ Operations Console"}`).
 - `GET /api/summary`: Consolidated read-only summary of `registry/active.json`, `monitoring/drift_reports/schema_check.json`, `runs/prediction/run.json`, `backlog_report.json`, and `runs/promotion/promotion_decision_v0002.json`.
 - `GET /api/predictions[?week=YYYY-MM-DD]`: Filtered top-15 rows from `predictions.csv` with list of available evaluation weeks.
+- `GET /api/backlog`: Direct read-only payload from `backlog_report.json`.
+- `GET /api/backlog/lookup?gateway_id=<ID>[&week=YYYY-MM-DD]`: Operational gateway lookup verifying whether a gateway was dispatched (ranks 1–15) or deferred to the backlog (ranks 16+) due to weekly capacity rationing.
 
 ---
 

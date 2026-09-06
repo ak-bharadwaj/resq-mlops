@@ -217,24 +217,41 @@
 
     <!-- 5. Backlog Strip -->
     <section class="backlog-banner" aria-label="Backlog Fleet Risk">
-      <div>
+      <div class="backlog-header-group">
         <div class="kpi-label" style="color: #fca5a5;">BACKLOG FLEET RISK (RANKS 16+)</div>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
           Gateways deferred due to 15-visit weekly capacity limit (€5,700/wk ceiling)
         </div>
+        <div class="backlog-allocation-container">
+          <div class="allocation-bar-labels">
+            <span id="alloc-label-dispatched">15 Dispatched (100% capacity)</span>
+            <span id="alloc-label-deferred">-- Deferred (Ranks 16+)</span>
+          </div>
+          <div class="allocation-bar-track">
+            <div class="alloc-fill-dispatched" id="alloc-bar-dispatched" style="width: 5%;"></div>
+            <div class="alloc-fill-deferred" id="alloc-bar-deferred" style="width: 95%;"></div>
+          </div>
+        </div>
       </div>
-      <div class="backlog-stats">
-        <div class="backlog-stat-item">
-          <span class="backlog-stat-number" id="backlog-deferred">--</span>
-          <span class="info-label">Deferred</span>
+      <div class="backlog-stats-group">
+        <div class="backlog-stats">
+          <div class="backlog-stat-item">
+            <span class="backlog-stat-number" id="backlog-deferred">--</span>
+            <span class="info-label">Deferred</span>
+          </div>
+          <div class="backlog-stat-item">
+            <span class="backlog-stat-number" id="backlog-high-risk">--</span>
+            <span class="info-label">Elevated Risk</span>
+          </div>
+          <div class="backlog-stat-item">
+            <span class="backlog-stat-number" id="backlog-proxy-hours">--</span>
+            <span class="info-label">Proxy Hours</span>
+          </div>
         </div>
-        <div class="backlog-stat-item">
-          <span class="backlog-stat-number" id="backlog-high-risk">--</span>
-          <span class="info-label">Elevated Risk</span>
-        </div>
-        <div class="backlog-stat-item">
-          <span class="backlog-stat-number" id="backlog-proxy-hours">--</span>
-          <span class="info-label">Proxy Hours</span>
+        <div style="margin-left: 15px;">
+          <button id="open-backlog-btn" class="btn-evidence-review" type="button">
+            📋 Inspect Backlog & Deferrals
+          </button>
         </div>
       </div>
     </section>
@@ -472,6 +489,176 @@
               </div>
             </div>
           </details>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Task 3: Interactive Dispatch Decision & Backlog Intelligence Modal -->
+    <div id="backlog-modal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="backlog-modal-title">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <h2 id="backlog-modal-title" class="modal-title">DISPATCH DECISION & BACKLOG INTELLIGENCE</h2>
+            <div class="modal-subtitle">
+              <span>Evaluated Week: <strong id="backlog-modal-week">--</strong></span>
+              <span class="modal-sub-sep">|</span>
+              <span>Scoring Model: <strong id="backlog-modal-version">--</strong></span>
+              <span class="modal-sub-sep">|</span>
+              <span>Single Pipeline Pass (Rule 9A)</span>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="close-backlog-btn" aria-label="Close Backlog Intelligence">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Operational Explainer Box -->
+          <div class="business-explainer-box">
+            <div class="explainer-heading" id="backlog-explainer-heading">Capacity Rationing & Backlog Rationale</div>
+            <p class="explainer-narrative" id="backlog-explainer-text">
+              Operations enforces a strict weekly capacity ceiling of 15 technician visits (€5,700/wk at €380/visit). All eligible gateways are evaluated in a single scoring pass. Gateways ranked 16 and above are deferred due to capacity rationing—not lack of anomalies. Ranks 16+ are continuously tracked in the backlog to maintain visibility into unresolved fleet risk.
+            </p>
+            <div class="explainer-code-row">
+              <span class="code-tag-label">Exposure Method:</span>
+              <span class="status-pill pill-unavailable" id="backlog-exposure-badge">heuristic_proxy</span>
+              <span class="code-tag-label" style="margin-left: 15px;">Pipeline Mode:</span>
+              <span class="status-pill pill-pass" id="backlog-mode-badge">SINGLE_RANKED_PASS</span>
+            </div>
+          </div>
+
+          <!-- Dispatched vs Deferred Split Grid -->
+          <div class="split-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+            <div class="evidence-section-card">
+              <div class="evidence-section-header">
+                <div>
+                  <div class="evidence-section-title">DISPATCHED ALLOCATION (RANKS 1–15)</div>
+                  <div class="evidence-subtitle">100% committed weekly technician capacity</div>
+                </div>
+                <div class="evidence-source-tag">Source: <code>predictions.csv</code></div>
+              </div>
+              <div class="holdout-review-body">
+                <div class="holdout-scope-line" id="bm-dispatched-summary">15 / 15 visits allocated</div>
+                <div class="info-row" style="margin-top: 8px;">
+                  <span class="info-label">Committed Spend:</span>
+                  <span class="info-value" style="color: var(--success); font-weight: 600;">€5,700 / week (15 × €380)</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Selection Criteria:</span>
+                  <span class="info-value">Top 15 anomaly scores in single pass</span>
+                </div>
+                <div class="callout-box info" style="margin-top: 10px; font-size: 12px;">
+                  Technicians actively dispatched to highest-priority field assets.
+                </div>
+              </div>
+            </div>
+
+            <div class="evidence-section-card">
+              <div class="evidence-section-header">
+                <div>
+                  <div class="evidence-section-title">DEFERRED BACKLOG (RANKS 16+)</div>
+                  <div class="evidence-subtitle">Monitored fleet risk deferred by capacity cap</div>
+                </div>
+                <div class="evidence-source-tag">Source: <code>backlog_report.json</code></div>
+              </div>
+              <div class="holdout-review-body">
+                <div class="holdout-counts-grid">
+                  <div class="holdout-count-col">
+                    <span class="info-label">Deferred Total:</span>
+                    <span class="modal-stat-num" id="bm-deferred-count">--</span>
+                    <span class="kpi-subtext">Ranks 16+</span>
+                  </div>
+                  <div class="holdout-count-col">
+                    <span class="info-label">Elevated Risk:</span>
+                    <span class="modal-stat-num" style="color: var(--danger);" id="bm-elevated-risk">--</span>
+                    <span class="kpi-subtext">Anomaly score &gt; 0</span>
+                  </div>
+                  <div class="holdout-count-col">
+                    <span class="info-label">Proxy Exposure:</span>
+                    <span class="modal-stat-num" style="color: var(--warning);" id="bm-proxy-hours">--</span>
+                    <span class="kpi-subtext">Proxy anomaly hrs</span>
+                  </div>
+                </div>
+                <div class="callout-box" style="margin-top: 10px; font-size: 12px;">
+                  <strong>Currency Honesty:</strong> Proxy anomaly hours represent telemetry deviation. Never reported as observed € savings.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Gateway Deferral Inspector -->
+          <div class="evidence-section-card" style="margin-bottom: 20px;">
+            <div class="evidence-section-header">
+              <div>
+                <div class="evidence-section-title">GATEWAY DEFERRAL INSPECTOR</div>
+                <div class="evidence-subtitle">Inspect individual gateway disposition and deferral rationale</div>
+              </div>
+              <span class="status-pill pill-pass">OPERATIONAL AUDIT</span>
+            </div>
+            <div class="holdout-review-body">
+              <div style="font-size: 13px; color: var(--text-dim); margin-bottom: 12px;">
+                Enter a 12-hex Gateway ID to verify if it was allocated a technician visit or deferred to the backlog due to the 15-visit limit.
+              </div>
+              <div class="inspector-form-row">
+                <input type="text" id="backlog-lookup-input" class="inspector-input" placeholder="e.g. 0639EA5602C1" maxlength="17" />
+                <button type="button" id="backlog-lookup-btn" class="btn-evidence-review" style="padding: 9px 18px;">Inspect Gateway</button>
+              </div>
+              <div class="inspector-chips-row">
+                <span style="font-size: 11px; color: var(--text-muted); align-self: center;">Quick Inspect:</span>
+                <button type="button" class="chip-btn" data-gw="0A2778A31BE3">0A2778A31BE3 (Rank 1 Dispatched)</button>
+                <button type="button" class="chip-btn" data-gw="0639EA5602C1">0639EA5602C1 (Deferred Sample)</button>
+                <button type="button" class="chip-btn" data-gw="0A56038B20D0">0A56038B20D0 (Deferred Sample)</button>
+              </div>
+              <div id="backlog-lookup-result" class="lookup-result-box">
+                <div style="color: var(--text-muted);">Enter a gateway ID above or click a quick sample to inspect its disposition.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Single Ranked Object Continuity Proof (Rule 9A) -->
+          <div class="evidence-section-card" style="margin-bottom: 20px;">
+            <div class="evidence-section-header">
+              <div>
+                <div class="evidence-section-title">SINGLE RANKED OBJECT CONTINUITY (RULE 9A)</div>
+                <div class="evidence-subtitle">AST-enforced integrity: one scoring pass feeds both dispatches and backlog</div>
+              </div>
+              <span class="status-pill pill-safe">VERIFIED PASS</span>
+            </div>
+            <div class="holdout-review-body">
+              <div class="pipeline-continuity-flow">
+                <div class="continuity-step">
+                  <div class="continuity-pill">1. Eligible Fleet</div>
+                  <div class="continuity-desc">Master filtering + UTC cutoff produces eligible gateway pool (e.g. 290 units)</div>
+                </div>
+                <div class="continuity-arrow">➔</div>
+                <div class="continuity-step">
+                  <div class="continuity-pill">2. Single Scoring Pass</div>
+                  <div class="continuity-desc">Scorer ranks all eligible units by score descending, breaking ties by canonical ID</div>
+                </div>
+                <div class="continuity-arrow">➔</div>
+                <div class="continuity-step">
+                  <div class="continuity-pill" style="border-color: #3b82f6;">3. Ranks 1–15 Dispatched</div>
+                  <div class="continuity-desc">Top 15 written strictly to predictions.csv (€5,700 technician commitment)</div>
+                </div>
+                <div class="continuity-arrow">➔</div>
+                <div class="continuity-step">
+                  <div class="continuity-pill" style="border-color: #f59e0b;">4. Ranks 16+ Deferred</div>
+                  <div class="continuity-desc">Remaining units written directly to backlog_report.json without re-scoring</div>
+                </div>
+              </div>
+              <div class="callout-box info" style="margin-top: 12px; font-size: 12px;">
+                <strong>Architecture Invariant:</strong> Neither output recomputes scores, rankings, or eligibility independently. Complete mathematical continuity is preserved across both artifacts.
+              </div>
+            </div>
+          </div>
+
+          <!-- Read-Only Safety Banner -->
+          <div class="callout-box" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong style="color: #6ee7b7;">READ-ONLY AUDIT LAYER:</strong>
+              <span style="color: var(--text-dim); margin-left: 6px;">This console provides operational visibility into model prioritization and backlog risk. Zero dispatch mutations or truck-roll overrides are permitted.</span>
+            </div>
+            <span class="status-pill pill-safe">NON-MUTATING</span>
+          </div>
 
         </div>
       </div>

@@ -459,7 +459,120 @@ class TestFrontendShell(unittest.TestCase):
             if temp_path.exists():
                 temp_path.unlink()
 
+    # =========================================================================
+    # Task 3: Backlog Intelligence & Deferral Inspector Tests
+    # =========================================================================
+
+    def test_backlog_endpoint_available(self):
+        """Verify load_json_artifact loads backlog_report.json with required fields."""
+        res = load_json_artifact("backlog_report.json")
+        self.assertEqual(res.get("status"), "AVAILABLE")
+        data = res.get("data", {})
+        self.assertIn("max_visits", data)
+        self.assertIn("selected_count", data)
+        self.assertIn("deferred_count", data)
+        self.assertIn("deferred_high_risk_count", data)
+        self.assertIn("deferred_risk_proxy_score", data)
+        self.assertEqual(data.get("exposure_method"), "heuristic_proxy")
+        self.assertEqual(data.get("max_visits"), 15)
+        self.assertEqual(data.get("selected_count"), 15)
+
+    def test_lookup_gateway_status_dispatched(self):
+        """Verify lookup_gateway_status identifies a top-15 dispatched gateway."""
+        from frontend.server import lookup_gateway_status
+        # Dispatched gateway from predictions.csv (0A2778A31BE3, Rank 1)
+        res = lookup_gateway_status("0A2778A31BE3")
+        self.assertEqual(res.get("status"), "AVAILABLE")
+        self.assertEqual(res.get("disposition"), "DISPATCHED")
+        self.assertEqual(res.get("rank"), 1)
+        self.assertIn("allocated technician visit", res.get("operational_narrative", ""))
+        self.assertIn("€380", res.get("operational_narrative", ""))
+
+    def test_lookup_gateway_status_deferred(self):
+        """Verify lookup_gateway_status identifies an eligible gateway deferred to backlog."""
+        from frontend.server import lookup_gateway_status
+        # Gateway in master but not in top 15 (0639EA5602C1, deferred)
+        res = lookup_gateway_status("0639EA5602C1")
+        self.assertEqual(res.get("status"), "AVAILABLE")
+        self.assertEqual(res.get("disposition"), "DEFERRED")
+        self.assertEqual(res.get("rank_tier"), "Ranks 16+")
+        self.assertIn("deferred to backlog", res.get("operational_narrative", ""))
+        self.assertIn("15-visit weekly capacity limit", res.get("operational_narrative", ""))
+        self.assertEqual(res.get("exposure_method"), "heuristic_proxy")
+
+    def test_lookup_gateway_status_not_found(self):
+        """Verify lookup_gateway_status returns NOT_FOUND for unknown gateway ID."""
+        from frontend.server import lookup_gateway_status
+        res = lookup_gateway_status("FFFFFFFFFFFF")
+        self.assertEqual(res.get("status"), "NOT_FOUND")
+        self.assertIn("not found in active fleet master", res.get("operational_narrative", ""))
+
+    def test_lookup_gateway_status_invalid_input(self):
+        """Verify lookup_gateway_status rejects empty or whitespace-only inputs."""
+        from frontend.server import lookup_gateway_status
+        res = lookup_gateway_status("   ")
+        self.assertEqual(res.get("status"), "INVALID")
+
+    def test_no_hardcoded_backlog_metrics_in_javascript(self):
+        """Anti-fabrication test: assert app.js contains zero hardcoded numbers for backlog counts."""
+        import re
+        app_js_text = (self.static_dir / "app.js").read_text(encoding="utf-8")
+        forbidden_patterns = [
+            r"\b275\b",         # deferred count
+            r"\b245\b",         # deferred elevated risk count
+            r"\b1523\b",        # proxy anomaly hours
+        ]
+        for pat in forbidden_patterns:
+            matches = re.findall(pat, app_js_text)
+            self.assertEqual(
+                len(matches),
+                0,
+                f"Found hardcoded backlog metric '{pat}' in app.js! Backlog numbers must be dynamically derived."
+            )
+
+    def test_initial_html_contains_no_hardcoded_backlog_metrics(self):
+        """Anti-fabrication test: assert index.html contains no hardcoded backlog numbers in initial state."""
+        html_content = (self.static_dir / "index.html").read_text(encoding="utf-8")
+        forbidden_metrics = [
+            "275 Deferred",
+            "245 Elevated",
+            "1,523 Proxy",
+            "1523 Proxy",
+        ]
+        for term in forbidden_metrics:
+            self.assertNotIn(
+                term,
+                html_content,
+                f"Found hardcoded metric '{term}' in initial index.html! Must use neutral placeholders."
+            )
+
+    def test_backlog_modal_and_elements_exist(self):
+        """Verify Task 3 Backlog Intelligence modal and inspector elements exist in index.html."""
+        html_content = (self.static_dir / "index.html").read_text(encoding="utf-8")
+        required_elements = [
+            'id="open-backlog-btn"',
+            'id="backlog-modal"',
+            'id="close-backlog-btn"',
+            'id="alloc-label-dispatched"',
+            'id="alloc-label-deferred"',
+            'id="alloc-bar-dispatched"',
+            'id="alloc-bar-deferred"',
+            'id="backlog-modal-week"',
+            'id="backlog-modal-version"',
+            'id="bm-dispatched-summary"',
+            'id="bm-deferred-count"',
+            'id="bm-elevated-risk"',
+            'id="bm-proxy-hours"',
+            'id="backlog-lookup-input"',
+            'id="backlog-lookup-btn"',
+            'id="backlog-lookup-result"',
+            'class="pipeline-continuity-flow"',
+        ]
+        for elem in required_elements:
+            self.assertIn(elem, html_content, f"Missing required Task 3 element {elem} in index.html")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

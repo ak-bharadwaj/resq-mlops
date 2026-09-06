@@ -115,7 +115,7 @@ function populateSummary(summary) {
   populateHealthPanel(schemaHealth);
 
   // 7. Backlog Strip
-  populateBacklogStrip(backlog);
+  populateBacklogStrip(backlog, activeReg);
 
   // 8. Lifecycle & Rollback Strip
   populateLifecycleStrip(activeReg, promotion, replayStatus);
@@ -616,37 +616,175 @@ function populateHealthPanel(schemaHealth) {
 }
 
 /**
- * Populate Backlog summary strip.
+ * Populate Backlog summary strip and Backlog Intelligence Modal.
  * Fails closed to UNAVAILABLE whenever counts are absent.
  */
-function populateBacklogStrip(backlog) {
+function populateBacklogStrip(backlog, activeReg) {
   const defEl = document.getElementById("backlog-deferred");
   const highRiskEl = document.getElementById("backlog-high-risk");
   const proxyEl = document.getElementById("backlog-proxy-hours");
+  const allocLabelDispatched = document.getElementById("alloc-label-dispatched");
+  const allocLabelDeferred = document.getElementById("alloc-label-deferred");
+  const allocBarDispatched = document.getElementById("alloc-bar-dispatched");
+  const allocBarDeferred = document.getElementById("alloc-bar-deferred");
+
+  // Modal elements
+  const modalWeekEl = document.getElementById("backlog-modal-week");
+  const modalVerEl = document.getElementById("backlog-modal-version");
+  const modalDispatchedSumEl = document.getElementById("bm-dispatched-summary");
+  const modalDefEl = document.getElementById("bm-deferred-count");
+  const modalHighRiskEl = document.getElementById("bm-elevated-risk");
+  const modalProxyEl = document.getElementById("bm-proxy-hours");
+  const exposureBadge = document.getElementById("backlog-exposure-badge");
 
   if (backlog?.status === "AVAILABLE" && backlog.data) {
     const data = backlog.data;
-    if (data.deferred_count !== undefined && data.deferred_count !== null) {
-      defEl.textContent = String(data.deferred_count);
+    const selected = data.selected_count !== undefined && data.selected_count !== null ? Number(data.selected_count) : null;
+    const maxVisits = data.max_visits !== undefined && data.max_visits !== null ? Number(data.max_visits) : null;
+    const deferred = data.deferred_count !== undefined && data.deferred_count !== null ? Number(data.deferred_count) : null;
+
+    if (deferred !== null) {
+      defEl.textContent = String(deferred);
+      if (modalDefEl) modalDefEl.textContent = String(deferred);
     } else {
       renderUnavailable(defEl, "deferred_count undefined");
+      if (modalDefEl) renderUnavailable(modalDefEl, "deferred_count undefined");
     }
 
     if (data.deferred_high_risk_count !== undefined && data.deferred_high_risk_count !== null) {
-      highRiskEl.textContent = String(data.deferred_high_risk_count);
+      const hr = String(data.deferred_high_risk_count);
+      highRiskEl.textContent = hr;
+      if (modalHighRiskEl) modalHighRiskEl.textContent = hr;
     } else {
       renderUnavailable(highRiskEl, "deferred_high_risk_count undefined");
+      if (modalHighRiskEl) renderUnavailable(modalHighRiskEl, "deferred_high_risk_count undefined");
     }
 
     if (data.deferred_risk_proxy_score !== undefined && data.deferred_risk_proxy_score !== null) {
-      proxyEl.textContent = Number(data.deferred_risk_proxy_score).toLocaleString("en-US", { maximumFractionDigits: 0 });
+      const scoreNum = Number(data.deferred_risk_proxy_score);
+      const formatted = scoreNum.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+      proxyEl.textContent = formatted;
+      if (modalProxyEl) modalProxyEl.textContent = `${formatted} hrs`;
     } else {
       renderUnavailable(proxyEl, "deferred_risk_proxy_score undefined");
+      if (modalProxyEl) renderUnavailable(modalProxyEl, "deferred_risk_proxy_score undefined");
+    }
+
+    // Allocation bar updates
+    if (selected !== null && deferred !== null) {
+      const total = selected + deferred;
+      const pctDispatched = total > 0 ? ((selected / total) * 100).toFixed(1) : 0;
+      const pctDeferred = (100 - pctDispatched).toFixed(1);
+
+      if (allocLabelDispatched) {
+        const capPct = maxVisits && maxVisits > 0 ? ((selected / maxVisits) * 100).toFixed(0) : 100;
+        allocLabelDispatched.textContent = `${selected} Dispatched (${capPct}% capacity)`;
+      }
+      if (allocLabelDeferred) {
+        allocLabelDeferred.textContent = `${deferred} Deferred (${pctDeferred}% fleet)`;
+      }
+      if (allocBarDispatched) allocBarDispatched.style.width = `${pctDispatched}%`;
+      if (allocBarDeferred) allocBarDeferred.style.width = `${pctDeferred}%`;
+    }
+
+    // Modal header and details
+    if (modalWeekEl) {
+      modalWeekEl.textContent = data.week_start ? `${formatDisplayDate(data.week_start)} (${data.week_start})` : "--";
+    }
+    if (modalVerEl) {
+      modalVerEl.textContent = data.model_version || (activeReg?.data?.production_version ? String(activeReg.data.production_version).toUpperCase() : "Active Model");
+    }
+    if (modalDispatchedSumEl) {
+      modalDispatchedSumEl.textContent = `${selected ?? '--'} / ${maxVisits ?? 15} visits allocated (100% capacity)`;
+    }
+    if (exposureBadge) {
+      exposureBadge.textContent = data.exposure_method || "heuristic_proxy";
+      exposureBadge.className = "status-pill pill-safe";
     }
   } else {
     renderUnavailable(defEl, backlog?.reason);
     renderUnavailable(highRiskEl, backlog?.reason);
     renderUnavailable(proxyEl, backlog?.reason);
+    if (modalDefEl) renderUnavailable(modalDefEl, backlog?.reason);
+    if (modalHighRiskEl) renderUnavailable(modalHighRiskEl, backlog?.reason);
+    if (modalProxyEl) renderUnavailable(modalProxyEl, backlog?.reason);
+    if (modalDispatchedSumEl) renderUnavailable(modalDispatchedSumEl, backlog?.reason);
+    if (exposureBadge) renderUnavailable(exposureBadge, backlog?.reason);
+  }
+}
+
+/**
+ * Asynchronously look up gateway deferral / dispatch status from /api/backlog/lookup.
+ */
+async function handleGatewayLookup(rawInput) {
+  const resultBox = document.getElementById("backlog-lookup-result");
+  const cleanedId = (rawInput || "").trim().replace(/:/g, "").toUpperCase();
+  if (!cleanedId) {
+    resultBox.innerHTML = `<div style="color: var(--warning); font-size: 12px;">Please enter a valid 12-hex Gateway ID (e.g. 0639EA5602C1).</div>`;
+    return;
+  }
+
+  resultBox.innerHTML = `<div style="color: var(--text-muted); font-size: 12px;">Looking up gateway ${cleanedId}...</div>`;
+
+  try {
+    const res = await fetch(`/api/backlog/lookup?gateway_id=${encodeURIComponent(cleanedId)}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    const data = await res.json();
+
+    if (data.status === "AVAILABLE") {
+      if (data.disposition === "DISPATCHED") {
+        resultBox.className = "lookup-result-box lookup-dispatched-card";
+        resultBox.innerHTML = `
+          <div class="lookup-header-row">
+            <span class="lookup-gw-id">${data.gateway_id}</span>
+            <span class="status-pill pill-active">DISPATCHED (RANK ${data.rank})</span>
+          </div>
+          <div class="lookup-narrative">${escapeHtml(data.operational_narrative)}</div>
+          <div class="lookup-metrics-grid">
+            <div><span class="info-label">Model Score:</span> <span class="info-value" style="font-family: var(--font-mono);">${Number(data.score).toFixed(6)}</span></div>
+            <div><span class="info-label">Truck Roll Spend:</span> <span class="info-value" style="color: var(--success); font-weight: 600;">€380 committed</span></div>
+            <div><span class="info-label">Primary Signal:</span> <span class="info-value">${escapeHtml(data.reason || "--")}</span></div>
+          </div>
+        `;
+      } else if (data.disposition === "DEFERRED") {
+        resultBox.className = "lookup-result-box lookup-deferred-card";
+        resultBox.innerHTML = `
+          <div class="lookup-header-row">
+            <span class="lookup-gw-id">${data.gateway_id}</span>
+            <span class="status-pill pill-rejected">DEFERRED (RANKS 16+)</span>
+          </div>
+          <div class="lookup-narrative">${escapeHtml(data.operational_narrative)}</div>
+          <div class="lookup-metrics-grid">
+            <div><span class="info-label">Disposition:</span> <span class="info-value">Deferred Backlog</span></div>
+            <div><span class="info-label">Capacity Limit:</span> <span class="info-value">15 visits/week (€5,700 ceiling)</span></div>
+            <div><span class="info-label">Risk Category:</span> <span class="info-value">${escapeHtml(data.exposure_method || "heuristic_proxy")}</span></div>
+          </div>
+        `;
+      }
+    } else if (data.status === "NOT_FOUND") {
+      resultBox.className = "lookup-result-box lookup-notfound-card";
+      resultBox.innerHTML = `
+        <div class="lookup-header-row">
+          <span class="lookup-gw-id">${cleanedId}</span>
+          <span class="status-pill pill-unavailable">NOT IN FLEET</span>
+        </div>
+        <div class="lookup-narrative">${escapeHtml(data.operational_narrative || "Gateway ID not found in active fleet master.")}</div>
+      `;
+    } else {
+      resultBox.className = "lookup-result-box";
+      resultBox.innerHTML = `
+        <div class="lookup-header-row">
+          <span class="lookup-gw-id">${cleanedId}</span>
+          <span class="status-pill pill-unavailable">UNAVAILABLE</span>
+        </div>
+        <div class="lookup-narrative">${escapeHtml(data.reason || "Backlog lookup data unavailable.")}</div>
+      `;
+    }
+  } catch (err) {
+    resultBox.className = "lookup-result-box";
+    resultBox.innerHTML = `<div style="color: var(--danger); font-size: 12px;">Lookup failed: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -831,6 +969,23 @@ function markAllSummaryUnavailable(errorMessage) {
   if (fcStep3Desc) fcStep3Desc.textContent = "Registry pointer state unconfirmed";
   if (fcStep4Pill) renderUnavailable(fcStep4Pill, errorMessage);
   if (fcStep4Desc) fcStep4Desc.textContent = "Dispatch model version unconfirmed";
+
+  // Task 3: Backlog Modal resets
+  const modalWeekEl = document.getElementById("backlog-modal-week");
+  const modalVerEl = document.getElementById("backlog-modal-version");
+  const modalDispatchedSumEl = document.getElementById("bm-dispatched-summary");
+  const modalDefEl = document.getElementById("bm-deferred-count");
+  const modalHighRiskEl = document.getElementById("bm-elevated-risk");
+  const modalProxyEl = document.getElementById("bm-proxy-hours");
+  const exposureBadge = document.getElementById("backlog-exposure-badge");
+
+  if (modalWeekEl) modalWeekEl.textContent = "--";
+  if (modalVerEl) modalVerEl.textContent = "--";
+  if (modalDispatchedSumEl) renderUnavailable(modalDispatchedSumEl, errorMessage);
+  if (modalDefEl) renderUnavailable(modalDefEl, errorMessage);
+  if (modalHighRiskEl) renderUnavailable(modalHighRiskEl, errorMessage);
+  if (modalProxyEl) renderUnavailable(modalProxyEl, errorMessage);
+  if (exposureBadge) renderUnavailable(exposureBadge, errorMessage);
 }
 
 /**
@@ -998,6 +1153,64 @@ document.addEventListener("DOMContentLoaded", () => {
       modal.classList.remove("open");
       modal.setAttribute("aria-hidden", "true");
     }
+  });
+
+  // Task 3: Backlog Intelligence Modal Listeners
+  const backlogModal = document.getElementById("backlog-modal");
+  const openBacklogBtn = document.getElementById("open-backlog-btn");
+  const closeBacklogBtn = document.getElementById("close-backlog-btn");
+
+  if (openBacklogBtn && backlogModal) {
+    openBacklogBtn.addEventListener("click", () => {
+      backlogModal.classList.add("open");
+      backlogModal.setAttribute("aria-hidden", "false");
+    });
+  }
+  if (closeBacklogBtn && backlogModal) {
+    closeBacklogBtn.addEventListener("click", () => {
+      backlogModal.classList.remove("open");
+      backlogModal.setAttribute("aria-hidden", "true");
+    });
+  }
+  if (backlogModal) {
+    backlogModal.addEventListener("click", (e) => {
+      if (e.target === backlogModal) {
+        backlogModal.classList.remove("open");
+        backlogModal.setAttribute("aria-hidden", "true");
+      }
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && backlogModal && backlogModal.classList.contains("open")) {
+      backlogModal.classList.remove("open");
+      backlogModal.setAttribute("aria-hidden", "true");
+    }
+  });
+
+  // Task 3: Gateway Deferral Inspector Form & Chips
+  const lookupBtn = document.getElementById("backlog-lookup-btn");
+  const lookupInput = document.getElementById("backlog-lookup-input");
+
+  if (lookupBtn && lookupInput) {
+    lookupBtn.addEventListener("click", () => {
+      handleGatewayLookup(lookupInput.value);
+    });
+    lookupInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleGatewayLookup(lookupInput.value);
+      }
+    });
+  }
+
+  document.querySelectorAll(".chip-btn").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const gw = chip.getAttribute("data-gw");
+      if (lookupInput && gw) {
+        lookupInput.value = gw;
+        handleGatewayLookup(gw);
+      }
+    });
   });
 
   // Fetch initial summary and predictions

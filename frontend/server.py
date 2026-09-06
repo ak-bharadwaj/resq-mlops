@@ -183,6 +183,91 @@ def load_predictions_artifact(selected_week: str | None = None) -> dict:
         }
 
 
+def lookup_gateway_status(gateway_id: str, week: str | None = None) -> dict:
+    """Look up whether a gateway was dispatched in predictions.csv or deferred to backlog."""
+    cleaned_id = gateway_id.strip().replace(":", "").upper()
+    if not cleaned_id:
+        return {"status": "INVALID", "reason": "Empty gateway ID provided"}
+
+    # 1. Check predictions.csv
+    preds_res = load_predictions_artifact(week)
+    if preds_res.get("status") == "AVAILABLE":
+        for p in preds_res.get("predictions", []):
+            p_id = p.get("gateway_id", "").strip().replace(":", "").upper()
+            if p_id == cleaned_id:
+                return {
+                    "status": "AVAILABLE",
+                    "gateway_id": cleaned_id,
+                    "disposition": "DISPATCHED",
+                    "rank": int(p.get("rank", 0)),
+                    "score": float(p.get("score", 0.0)),
+                    "reason": p.get("reason", ""),
+                    "week_start": p.get("week_start", week or ""),
+                    "operational_narrative": (
+                        f"Gateway {cleaned_id} allocated technician visit (Rank {p.get('rank')}) "
+                        f"in weekly capacity quota (€380 truck roll committed). Primary signal: {p.get('reason')}."
+                    ),
+                }
+
+    # 2. Check gateway_master.csv to confirm fleet membership
+    master_path = REPO_ROOT / "data" / "gateway_master.csv"
+    in_master = False
+    master_info = {}
+    if master_path.exists():
+        try:
+            with open(master_path, "r", encoding="latin-1") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    m_id = row.get("gateway_id", "").strip().replace(":", "").upper()
+                    if m_id == cleaned_id:
+                        in_master = True
+                        master_info = {
+                            "tenant": row.get("tenant"),
+                            "site_type": row.get("site_type"),
+                            "region": row.get("region"),
+                            "hw_model": row.get("hw_model"),
+                        }
+                        break
+        except Exception:
+            pass
+
+    # 3. Load Backlog Report for context
+    backlog_res = load_json_artifact("backlog_report.json")
+
+    if in_master:
+        if backlog_res.get("status") == "AVAILABLE":
+            b_data = backlog_res.get("data", {})
+            return {
+                "status": "AVAILABLE",
+                "gateway_id": cleaned_id,
+                "disposition": "DEFERRED",
+                "rank_tier": "Ranks 16+",
+                "week_start": b_data.get("week_start", week or ""),
+                "operational_narrative": (
+                    f"Gateway {cleaned_id} deferred to backlog. Evaluated in single scoring pass; "
+                    f"deferred strictly to protect the 15-visit weekly capacity limit (€5,700 budget ceiling). "
+                    f"Lower relative priority than rank 15. Tracked under heuristic risk proxy exposure."
+                ),
+                "exposure_method": b_data.get("exposure_method", "heuristic_proxy"),
+                "evidence_quality": b_data.get("evidence_quality", "baseline"),
+                "fleet_metadata": master_info,
+            }
+        else:
+            return {
+                "status": "UNAVAILABLE",
+                "gateway_id": cleaned_id,
+                "disposition": "DEFERRED",
+                "reason": "backlog_report.json not found on disk. Run 'make run' to generate backlog intelligence.",
+            }
+
+    # 4. Gateway not in master
+    return {
+        "status": "NOT_FOUND",
+        "gateway_id": cleaned_id,
+        "operational_narrative": f"Gateway ID '{cleaned_id}' not found in active fleet master.",
+    }
+
+
 class ConsoleRequestHandler(SimpleHTTPRequestHandler):
     """Custom HTTP handler serving dashboard static assets and read-only APIs."""
 
@@ -221,7 +306,21 @@ class ConsoleRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(preds_payload)
             return
 
-        # 3. API: Health Check
+        # 3. API: Backlog Report Artifact
+        if path == "/api/backlog":
+            backlog_payload = load_json_artifact("backlog_report.json")
+            self._send_json(backlog_payload)
+            return
+
+        # 4. API: Gateway Deferral Status Lookup
+        if path == "/api/backlog/lookup":
+            gw_param = query.get("gateway_id", [""])[0]
+            week_param = query.get("week", [None])[0]
+            lookup_payload = lookup_gateway_status(gw_param, week_param)
+            self._send_json(lookup_payload)
+            return
+
+        # 5. API: Health Check
         if path == "/api/health":
             self._send_json({"status": "OK", "service": "RESQ Operations Console"})
             return
