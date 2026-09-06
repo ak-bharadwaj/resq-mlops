@@ -337,6 +337,8 @@ def predict_week(
         "predictions": predictions,
         "backlog_report": backlog_report,
         "replay_hash": replay_hash,
+        "canonical_input_bytes": canonical_input_bytes,
+        "canonical_predictions_bytes": canonical_pred_bytes,
         "active_version": active_version,
         "week_start": monday.isoformat(),
         "scored_gateway_ids": [rec["gateway_id"] for rec in scored_records],
@@ -360,6 +362,7 @@ def write_run_record(
     schema_version: str | None = None,
     replay_hash: str,
     output_file: str,
+    predictions_file_hash: str | None = None,
     backlog_file: str | None = None,
     data_dir: str = "data",
     week_start: str | None = None,
@@ -389,6 +392,11 @@ def write_run_record(
 
     req_hash = compute_requirements_lock_hash()
 
+    if predictions_file_hash is None:
+        out_p = pathlib.Path(output_file)
+        if out_p.exists() and out_p.is_file():
+            predictions_file_hash = f"sha256:{hashlib.sha256(out_p.read_bytes()).hexdigest()}"
+
     record: dict[str, Any] = {
         "run_id": run_id,
         "model_version": model_version,
@@ -401,6 +409,7 @@ def write_run_record(
         },
         "requirements_lock_hash": req_hash,
         "replay_hash": replay_hash,
+        "predictions_file_hash": predictions_file_hash,
         "data_dir": str(data_dir),
         "output_file": str(output_file),
         "timestamp_utc": execution_timestamp_utc,

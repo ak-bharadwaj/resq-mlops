@@ -483,31 +483,59 @@ class TestCandidateMaterializationAndProductionSeparation:
         assert registry_file.read_text(encoding="utf-8") == initial_state
 
     def test_packaging_asserts_clean_tree(self, monkeypatch, tmp_path: Path):
-        """Packaging verifies clean git working tree for scorer source per v25 Section 6."""
+        """Packaging verifies clean git working tree for scorer source per v25 Section 6 (fail-closed)."""
         test_file = tmp_path / "mock_scorer.py"
         test_file.write_text("# clean scorer\n", encoding="utf-8")
 
-        # Simulate git status --porcelain detecting uncommitted changes
+        # 1. Missing git binary raises TrainingError (fail-closed)
+        def mock_git_missing(*args, **kwargs):
+            raise FileNotFoundError("git not found")
+
+        monkeypatch.setattr(subprocess, "run", mock_git_missing)
+        with pytest.raises(TrainingError, match="git executable is not available"):
+            assert_clean_working_tree(test_file)
+
+        # 2. Git status non-zero exit code raises TrainingError (fail-closed)
+        def mock_git_error(*args, **kwargs):
+            class MockResult:
+                returncode = 128
+                stdout = ""
+                stderr = "fatal: not a git repository"
+            return MockResult()
+
+        monkeypatch.setattr(subprocess, "run", mock_git_error)
+        with pytest.raises(TrainingError, match="git status failed"):
+            assert_clean_working_tree(test_file)
+
+        # 3. Simulate git status --porcelain detecting uncommitted changes
         def mock_git_dirty(*args, **kwargs):
             class MockResult:
                 returncode = 0
                 stdout = " M app/model/scorer.py\n"
+                stderr = ""
             return MockResult()
 
         monkeypatch.setattr(subprocess, "run", mock_git_dirty)
         with pytest.raises(TrainingError, match="clean working tree"):
             assert_clean_working_tree(test_file)
 
-        # Simulate clean git status
+        # 4. Simulate clean git status
         def mock_git_clean(*args, **kwargs):
             class MockResult:
                 returncode = 0
                 stdout = ""
+                stderr = ""
             return MockResult()
 
         monkeypatch.setattr(subprocess, "run", mock_git_clean)
         # Clean file passes without error
         assert_clean_working_tree(test_file)
+
+        # 5. Real execution against actual committed app/model/scorer.py in repo
+        real_scorer = Path("app/model/scorer.py")
+        if real_scorer.exists():
+            monkeypatch.undo()
+            assert_clean_working_tree(real_scorer)
 
 
 class TestRealDataAndEndToEndConnectivity:

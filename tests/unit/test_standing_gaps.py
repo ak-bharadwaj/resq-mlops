@@ -314,17 +314,30 @@ def test_run_json_provenance_contract(tmp_path: pathlib.Path, repo_root: pathlib
     """Verify run.json provenance contract per v25 Section 6 and Section 14.
 
     Must contain: run_id, model_version, feature_version, schema_version,
-    runtime (python_version, platform), requirements_lock_hash, and replay_hash.
+    runtime (python_version, platform), requirements_lock_hash, replay_hash,
+    and distinct predictions_file_hash.
     """
-    from app.model.predict import write_run_record, compute_requirements_lock_hash
+    from app.model.predict import (
+        build_canonical_predictions_bytes,
+        compute_requirements_lock_hash,
+        compute_v25_replay_hash,
+        predict_week,
+        write_run_record,
+    )
 
     # 1. Test unit emission with write_run_record
+    dummy_pred_file = tmp_path / "predictions.csv"
+    dummy_pred_file.write_text("week_start,rank,gateway_id,score,reason\n2026-02-02,1,0639EA5602C1,1.000000,test\n", encoding="utf-8")
+    dummy_pred_hash = f"sha256:{hashlib.sha256(dummy_pred_file.read_bytes()).hexdigest()}"
+    dummy_replay_hash = "sha256:c29785895139909de9df601edcd939d39482cbc24739411eb6e7837a9f5c232f"
+
     target_run_json = tmp_path / "run.json"
     rec = write_run_record(
         run_path=target_run_json,
         model_version="v0001",
-        replay_hash="sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc",
-        output_file="predictions.csv",
+        replay_hash=dummy_replay_hash,
+        predictions_file_hash=dummy_pred_hash,
+        output_file=str(dummy_pred_file),
         data_dir="data",
     )
 
@@ -339,6 +352,7 @@ def test_run_json_provenance_contract(tmp_path: pathlib.Path, repo_root: pathlib
         "runtime",
         "requirements_lock_hash",
         "replay_hash",
+        "predictions_file_hash",
         "data_dir",
         "output_file",
         "timestamp_utc",
@@ -352,10 +366,27 @@ def test_run_json_provenance_contract(tmp_path: pathlib.Path, repo_root: pathlib
     assert "python_version" in loaded["runtime"]
     assert "platform" in loaded["runtime"]
     assert loaded["requirements_lock_hash"].startswith("sha256:")
-    assert loaded["replay_hash"].startswith("sha256:")
+    assert loaded["replay_hash"] == dummy_replay_hash
+    assert loaded["predictions_file_hash"] == dummy_pred_hash
+    # Assert decoupling: replay_hash binds input+predictions; predictions_file_hash binds CSV bytes alone
+    assert loaded["replay_hash"] != loaded["predictions_file_hash"]
 
     # 2. Check sync with run_latest.json
     latest_run = tmp_path / "run_latest.json"
     assert latest_run.exists()
     assert json.loads(latest_run.read_text(encoding="utf-8")) == loaded
+
+    # 3. Verify real submission run.json provenance if data exists
+    real_run_json = repo_root / "runs" / "prediction" / "run.json"
+    real_pred_file = repo_root / "predictions.csv"
+    if real_run_json.exists() and real_pred_file.exists():
+        real_loaded = json.loads(real_run_json.read_text(encoding="utf-8"))
+        assert "replay_hash" in real_loaded
+        assert "predictions_file_hash" in real_loaded
+        # Assert that the true 8-week replay hash is NOT equal to the raw CSV file hash
+        assert real_loaded["replay_hash"] != real_loaded["predictions_file_hash"]
+        # Assert predictions_file_hash matches actual predictions.csv bytes
+        actual_pred_csv_hash = f"sha256:{hashlib.sha256(real_pred_file.read_bytes()).hexdigest()}"
+        assert real_loaded["predictions_file_hash"] == actual_pred_csv_hash
+
 

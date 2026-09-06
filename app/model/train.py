@@ -42,10 +42,15 @@ class PackageAlreadyExistsError(TrainingError):
 def assert_clean_working_tree(file_path: pathlib.Path) -> None:
     """Assert that file_path has no uncommitted modifications in git per v25 Section 6.
 
-    Fails closed with TrainingError if the working tree has uncommitted modifications to the file.
+    Strict fail-closed semantics:
+    - scorer file missing         -> TrainingError
+    - git executable missing      -> TrainingError
+    - git status non-zero         -> TrainingError
+    - git status output non-empty -> TrainingError
+    - git status success + empty  -> PASS
     """
     if not file_path.exists():
-        return
+        raise TrainingError(f"Scorer file missing for clean-tree assertion: {file_path}")
     try:
         res = subprocess.run(
             ["git", "status", "--porcelain", str(file_path)],
@@ -53,15 +58,21 @@ def assert_clean_working_tree(file_path: pathlib.Path) -> None:
             text=True,
             check=False,
         )
-        if res.returncode == 0:
-            output = res.stdout.strip()
-            if output:
-                raise TrainingError(
-                    f"Packaging requires clean working tree per v25 Section 6: {file_path} has uncommitted modifications:\n{output}"
-                )
-    except FileNotFoundError:
-        # git binary not found in environment
-        pass
+    except FileNotFoundError as exc:
+        raise TrainingError(
+            "Packaging requires git clean-tree assertion per v25 Section 6, but git executable is not available"
+        ) from exc
+
+    if res.returncode != 0:
+        raise TrainingError(
+            f"Packaging requires git clean-tree assertion per v25 Section 6, but git status failed (exit code {res.returncode}):\n{res.stderr.strip()}"
+        )
+
+    output = res.stdout.strip()
+    if output:
+        raise TrainingError(
+            f"Packaging requires clean working tree per v25 Section 6: {file_path} has uncommitted modifications:\n{output}"
+        )
 
 
 def compute_artifact_hash(model_dir: pathlib.Path) -> str:

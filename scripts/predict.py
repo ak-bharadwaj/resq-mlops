@@ -118,10 +118,15 @@ def main() -> None:
     )
 
     # Write run record per v25 Section 6 and Section 14
+    import hashlib
+    pred_bytes = args.output.read_bytes()
+    pred_file_hash = f"sha256:{hashlib.sha256(pred_bytes).hexdigest()}"
+
     write_run_record(
         run_path=args.run_record,
         model_version=result["active_version"],
         replay_hash=result["replay_hash"],
+        predictions_file_hash=pred_file_hash,
         output_file=str(args.output),
         backlog_file=str(args.backlog_report),
         data_dir=str(args.data),

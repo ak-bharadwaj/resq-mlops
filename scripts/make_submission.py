@@ -17,6 +17,8 @@ if str(root_dir) not in sys.path:
 from app.model.predict import (
     InsufficientEligibleGatewaysError,
     ModelArtifactError,
+    build_canonical_predictions_bytes,
+    compute_v25_replay_hash,
     predict_week,
     resolve_active_model_version,
     write_run_record,
@@ -58,6 +60,7 @@ def main() -> None:
         sys.exit(1)
 
     all_predictions: list[dict[str, str | int | float]] = []
+    all_canonical_inputs: list[bytes] = []
 
     for monday in SCORED_WEEKS:
         try:
@@ -71,6 +74,7 @@ def main() -> None:
             print(f"ERROR: Week {monday} produced {len(preds)} predictions, expected exactly 15", file=sys.stderr)
             sys.exit(1)
         all_predictions.extend(preds)
+        all_canonical_inputs.append(result["canonical_input_bytes"])
 
     # Write predictions.csv with strictly 6-decimal float formatting and LF endings
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -106,13 +110,19 @@ def main() -> None:
     # Write run provenance record per v25 Section 6 and Section 14
     import hashlib
     pred_bytes = args.output.read_bytes()
-    submission_replay_hash = f"sha256:{hashlib.sha256(pred_bytes).hexdigest()}"
+    predictions_file_hash = f"sha256:{hashlib.sha256(pred_bytes).hexdigest()}"
+
+    # True 8-week replay hash: SHA256(all_canonical_input_bytes || canonical_predictions_bytes)
+    all_input_bytes = b"".join(all_canonical_inputs)
+    canonical_pred_bytes = build_canonical_predictions_bytes(all_predictions)
+    submission_replay_hash = compute_v25_replay_hash(all_input_bytes, canonical_pred_bytes)
 
     active_ver = resolve_active_model_version()
     write_run_record(
         run_path=args.run_record,
         model_version=active_ver,
         replay_hash=submission_replay_hash,
+        predictions_file_hash=predictions_file_hash,
         output_file=str(args.output),
         data_dir=str(args.data),
     )
