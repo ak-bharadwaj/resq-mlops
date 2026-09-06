@@ -1,6 +1,6 @@
 {
   "production_version": "v0001",
-  "previous_version": null,
-  "changed_at": "2026-09-05T00:00:00Z",
-  "reason": "initial baseline deployment"
+  "previous_version": "v_promotable",
+  "changed_at": "2026-09-06T14:14:46.547267+00:00",
+  "reason": "rollback to v0001"
 }

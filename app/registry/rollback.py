@@ -300,9 +300,12 @@ def execute_rollback(
         history_entry = {
             "event": "ROLLED_BACK",
             "version": resolved_target,
+            "to": resolved_target,
             "previous_version": curr_active,
+            "from": curr_active,
             "timestamp": timestamp_utc,
             "reason": f"rollback to {resolved_target}",
+            "reason_code": "ROLLBACK_SUCCESS",
         }
         if not history_path.parent.exists():
             history_path.parent.mkdir(parents=True, exist_ok=True)

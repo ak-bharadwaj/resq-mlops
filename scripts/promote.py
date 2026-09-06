@@ -11,6 +11,7 @@ Frozen Architecture References:
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import argparse
 import json
 import pathlib
@@ -125,6 +126,7 @@ def main() -> None:
     # 4. Record Decision Artifact
     args.output_dir.mkdir(parents=True, exist_ok=True)
     decision_file = args.output_dir / f"promotion_decision_{args.candidate}.json"
+    timestamp_utc = datetime.now(timezone.utc).isoformat()
     decision_record = {
         "candidate_version": args.candidate,
         "active_version": active_version,
@@ -139,14 +141,19 @@ def main() -> None:
         "coverage_ratio": decision.coverage_ratio,
         "window_results": decision.window_results,
         "grouped_holdout_result": decision.grouped_holdout_result,
-        "timestamp_utc": decision.timestamp_utc,
+        "timestamp_utc": timestamp_utc,
         "promoted_to_production": False,
     }
 
     # 5. Handle State Mutation
     if decision.decision == "PROMOTE":
         if not args.dry_run:
-            promote_candidate(args.candidate, decision, registry_path=registry_path)
+            promote_candidate(
+                candidate_version=args.candidate,
+                decision=decision,
+                registry_path=registry_path,
+                timestamp_utc=timestamp_utc,
+            )
             decision_record["promoted_to_production"] = True
             print(f"PROMOTION SUCCESS: Atomically promoted {args.candidate} to production in {registry_path}.")
         else:

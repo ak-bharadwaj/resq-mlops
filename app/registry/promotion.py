@@ -245,11 +245,17 @@ def promote_candidate(
         except Exception:
             pass
 
+    reason_text = (
+        f"staged demonstration fixture: {decision.reason_code}"
+        if decision.reason_code == "DEMO_FIXTURE_STAGED"
+        else f"passed promotion gate: {decision.reason_code}"
+    )
+
     new_active_payload = {
         "production_version": candidate_version,
         "previous_version": previous_version,
         "changed_at": timestamp_utc,
-        "reason": f"passed promotion gate: {decision.reason_code}",
+        "reason": reason_text,
     }
 
     # Atomic write
@@ -261,9 +267,11 @@ def promote_candidate(
     history_entry = {
         "event": "PROMOTED",
         "version": candidate_version,
+        "candidate": candidate_version,
         "previous_version": previous_version,
         "timestamp": timestamp_utc,
-        "reason": f"passed promotion gate: {decision.reason_code}",
+        "reason": reason_text,
+        "reason_code": decision.reason_code,
     }
     with history_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(history_entry) + "\n")

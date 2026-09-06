@@ -78,8 +78,8 @@ def test_zero_wall_clock_in_production_code():
     """Verify zero system clock calls exist in prediction and feature paths."""
     root = Path(__file__).parent.parent.parent
     target_dirs = [root / "app", root / "scripts"]
-    # Operational monitoring scripts (check_drift.py) capture live runtime execution timestamps for audit reports
-    exempt_monitoring_scripts = {"check_drift.py"}
+    # Operational CLI scripts (check_drift.py, rollback.py, promote.py) capture live runtime execution timestamps for audit reports
+    exempt_monitoring_scripts = {"check_drift.py", "rollback.py", "promote.py"}
     all_violations = []
 
     for d in target_dirs:

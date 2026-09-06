@@ -389,3 +389,56 @@ def test_rollback_cli_execution(tmp_path):
     assert "Post-rollback replay hash: sha256:" in stdout
     assert "Replay equality: PASS" in stdout
     assert "Active model: v0001" in stdout
+
+
+def test_rollback_cli_canonical_demo_fixture_staging(tmp_path):
+    """Demonstration Contract: scripts/rollback.py stages v_promotable via promotion machinery and rolls back to v0001."""
+    data_dir = pathlib.Path("data")
+    if not data_dir.exists():
+        pytest.skip("Data directory not available")
+
+    registry_path = tmp_path / "active.json"
+    history_path = tmp_path / "history.jsonl"
+    registry_path.write_text(
+        json.dumps({"production_version": "v0001", "previous_version": None, "changed_at": "2026-09-05T00:00:00Z"}),
+        encoding="utf-8",
+    )
+    history_path.write_text(
+        json.dumps({"event": "INITIALIZED", "version": "v0001", "timestamp": "2026-09-05T00:00:00Z"}) + "\n",
+        encoding="utf-8",
+    )
+
+    res = subprocess.run(
+        [
+            sys.executable,
+            "scripts/rollback.py",
+            "--registry", str(registry_path),
+            "--history", str(history_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    stdout = res.stdout
+    assert "Notice: Active model is baseline v0001." in stdout
+    assert "Candidate fixture validation: PASS" in stdout
+    assert "Staging promotion: SUCCESS (DEMO_FIXTURE_STAGED" in stdout
+    assert "Target validation: PASS" in stdout
+    assert "Replay equality: PASS" in stdout
+    assert "Active model: v0001" in stdout
+
+    # Verify active.json ended on v0001 with previous_version v_promotable
+    final_active = json.loads(registry_path.read_text(encoding="utf-8"))
+    assert final_active["production_version"] == "v0001"
+    assert final_active["previous_version"] == "v_promotable"
+
+    # Verify history.jsonl recorded both PROMOTED and ROLLED_BACK events
+    history_records = [json.loads(line) for line in history_path.read_text(encoding="utf-8").strip().splitlines()]
+    assert len(history_records) == 3
+    assert history_records[0]["event"] == "INITIALIZED"
+    assert history_records[1]["event"] == "PROMOTED"
+    assert history_records[1]["version"] == "v_promotable"
+    assert history_records[1]["reason_code"] == "DEMO_FIXTURE_STAGED"
+    assert history_records[2]["event"] == "ROLLED_BACK"
+    assert history_records[2]["version"] == "v0001"
+    assert history_records[2]["from"] == "v_promotable"
