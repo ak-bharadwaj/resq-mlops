@@ -379,14 +379,36 @@ def test_run_json_provenance_contract(tmp_path: pathlib.Path, repo_root: pathlib
     # 3. Verify real submission run.json provenance if data exists
     real_run_json = repo_root / "runs" / "prediction" / "run.json"
     real_pred_file = repo_root / "predictions.csv"
-    if real_run_json.exists() and real_pred_file.exists():
+    data_dir = repo_root / "data"
+    if real_run_json.exists() and real_pred_file.exists() and data_dir.exists():
         real_loaded = json.loads(real_run_json.read_text(encoding="utf-8"))
         assert "replay_hash" in real_loaded
         assert "predictions_file_hash" in real_loaded
-        # Assert that the true 8-week replay hash is NOT equal to the raw CSV file hash
-        assert real_loaded["replay_hash"] != real_loaded["predictions_file_hash"]
+
+        # Independent recomputation of the 8-week canonical inputs and predictions hash
+        scored_mondays = [dt.date(2026, 2, 2) + dt.timedelta(days=7 * i) for i in range(8)]
+        all_canonical_inputs = []
+        all_predictions = []
+        for monday in scored_mondays:
+            week_res = predict_week(data_dir=data_dir, week_start=monday)
+            all_canonical_inputs.append(week_res["canonical_input_bytes"])
+            all_predictions.extend(week_res["predictions"])
+
+        independent_all_inputs = b"".join(all_canonical_inputs)
+        independent_canonical_preds = build_canonical_predictions_bytes(all_predictions)
+        independent_replay_hash = compute_v25_replay_hash(independent_all_inputs, independent_canonical_preds)
+
+        # Assert that real_loaded["replay_hash"] matches the independent 8-week derivation exactly
+        assert real_loaded["replay_hash"] == independent_replay_hash, (
+            f"run.json replay_hash '{real_loaded['replay_hash']}' does not match "
+            f"independently recomputed 8-week hash '{independent_replay_hash}'"
+        )
+
         # Assert predictions_file_hash matches actual predictions.csv bytes
         actual_pred_csv_hash = f"sha256:{hashlib.sha256(real_pred_file.read_bytes()).hexdigest()}"
         assert real_loaded["predictions_file_hash"] == actual_pred_csv_hash
+
+        # Assert decoupling: true 8-week replay hash != raw CSV file hash
+        assert real_loaded["replay_hash"] != real_loaded["predictions_file_hash"]
 
 
