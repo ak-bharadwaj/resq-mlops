@@ -111,7 +111,7 @@ def main() -> None:
         "status": status,
         "active_model_version": active_version,
         "week_checked": args.week,
-        "timestamp_utc": "2026-09-05T00:00:00Z",
+        "timestamp_utc": dt.datetime.now(dt.timezone.utc).isoformat(),
         "rows_checked": len(telemetry_df),
         "unique_reporting_gateways": int(telemetry_df["canonical_id"].nunique()) if "canonical_id" in telemetry_df.columns else 0,
         "eligible_gateways_count": len(eligible_gateways),

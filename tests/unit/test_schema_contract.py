@@ -264,8 +264,26 @@ def test_check_drift_cli_execution(tmp_path: pathlib.Path):
     import sys
 
     data_dir = pathlib.Path("data")
-    if not data_dir.exists():
-        pytest.skip("data directory not available")
+    if not (data_dir.exists() and (data_dir / "gateway_master.csv").exists()):
+        # Synthesize minimal valid dataset so test never skips on clean clones without data
+        data_dir = tmp_path / "mock_data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / "gateway_master.csv").write_text(
+            "gateway_id,tenant,site_type,region,hw_model,antenna_type,fw_version,installed_on,n_meters_installed\n"
+            "0639EA5602C1,tenant_a,pole,EU-NORTH,rev_1,omni,1.0.0,2025-01-01,10\n",
+            encoding="cp1252",
+        )
+        telemetry_dir = data_dir / "telemetry"
+        telemetry_dir.mkdir(parents=True, exist_ok=True)
+        ts_range = pd.date_range("2026-01-10", "2026-02-01", freq="h", tz="UTC")
+        df_telemetry = pd.DataFrame({
+            "gateway_id": ["0639EA5602C1"] * len(ts_range),
+            "ts_utc": ts_range,
+            "offline_duration_sec": [0.0] * len(ts_range),
+            "disconnection_cnt": [0.0] * len(ts_range),
+            "reboot_cnt": [0.0] * len(ts_range),
+        })
+        df_telemetry.to_parquet(telemetry_dir / "part-0.parquet")
 
     report_out = tmp_path / "drift_report.json"
     res = subprocess.run(
@@ -288,4 +306,58 @@ def test_check_drift_cli_execution(tmp_path: pathlib.Path):
     assert report_data["schema_validation_passed"] is True
     assert report_data["source_completeness_safe"] is True
     assert report_data["rows_checked"] > 0
+    # Provenance assertion: timestamp_utc must be a valid, timezone-aware ISO-8601 string
+    parsed_ts = dt.datetime.fromisoformat(report_data["timestamp_utc"])
+    assert parsed_ts.tzinfo is not None
+
+
+def test_check_drift_cli_synthetic_data_isolation(tmp_path: pathlib.Path):
+    """Verify scripts/check_drift.py executes cleanly against a standalone synthetic data directory."""
+    import subprocess
+    import sys
+
+    mock_data = tmp_path / "mock_data"
+    mock_data.mkdir(parents=True, exist_ok=True)
+    (mock_data / "gateway_master.csv").write_text(
+        "gateway_id,tenant,site_type,region,hw_model,antenna_type,fw_version,installed_on,n_meters_installed\n"
+        "0639EA5602C1,tenant_a,pole,EU-NORTH,rev_1,omni,1.0.0,2025-01-01,10\n",
+        encoding="cp1252",
+    )
+    telemetry_dir = mock_data / "telemetry"
+    telemetry_dir.mkdir(parents=True, exist_ok=True)
+    ts_range = pd.date_range("2026-01-10", "2026-02-01", freq="h", tz="UTC")
+    df_telemetry = pd.DataFrame({
+        "gateway_id": ["0639EA5602C1"] * len(ts_range),
+        "ts_utc": ts_range,
+        "offline_duration_sec": [0.0] * len(ts_range),
+        "disconnection_cnt": [0.0] * len(ts_range),
+        "reboot_cnt": [0.0] * len(ts_range),
+    })
+    df_telemetry.to_parquet(telemetry_dir / "part-0.parquet")
+
+    report_out = tmp_path / "drift_report_synthetic.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_drift.py",
+            "--data", str(mock_data),
+            "--output", str(report_out),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, f"check_drift failed on synthetic data: {res.stderr}"
+    assert "STRUCTURAL SCHEMA MONITORING" in res.stdout
+    assert "Structural Schema:      PASS" in res.stdout
+    assert report_out.exists()
+
+    report_data = json.loads(report_out.read_text(encoding="utf-8"))
+    assert report_data["status"] == "PASS"
+    assert report_data["schema_validation_passed"] is True
+    assert report_data["source_completeness_safe"] is True
+    assert report_data["rows_checked"] == len(ts_range)
+    parsed_ts = dt.datetime.fromisoformat(report_data["timestamp_utc"])
+    assert parsed_ts.tzinfo is not None
+
+
 
