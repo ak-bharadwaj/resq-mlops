@@ -1,0 +1,139 @@
+================================================================================
+RESQ-MLOps Authoritative Rollback & Artifact Integrity Execution Evidence
+================================================================================
+Timestamp (UTC): 2026-09-06T12:50:00Z
+Python Version: Python 3.14.5 (tags/v3.14.5:0a79b2b, Feb 10 2026, 19:44:40) [MSC v.1944 64 bit (AMD64)]
+Platform: Windows-11-10.0.26100-SP0 (win32)
+Frozen Architecture: docs/ARCHITECTURE_v25_FREEZE.md (Sections 6, 10, 10A, 11)
+
+1. ROOT CAUSE & PERMANENT RESOLUTION
+--------------------------------------------------------------------------------
+Root Cause:
+Models 'models/v0001/manifest.json', 'models/v0002/manifest.json', and
+'models/v_promotable/manifest.json' had declared 'artifact_hash' values computed
+from Windows CRLF (\r\n) file encodings. In Git and on Linux/CI checkouts,
+repository objects are stored with LF (\n). When evaluated on Linux or fresh
+clones, 'compute_artifact_hash()' hashed LF bytes, causing 'validate_rollback_target()'
+to detect a mismatch between declared and computed hashes and fail closed before
+the pointer switch.
+
+Resolution Implemented:
+1. 'compute_artifact_hash()' in 'app/model/train.py':
+   Explicitly normalizes text files (.json, .txt) by replacing b'\r\n' with b'\n'
+   before SHA-256 digest computation, ensuring bit-for-bit identical hashes across
+   Windows, Linux, macOS, and Git checkouts. Binary files ('model.joblib') remain
+   strictly binary.
+2. '.gitattributes' created at repository root:
+   Enforces 'eol=lf' for text files and 'binary' for '*.joblib', guaranteeing
+   canonical LF checkouts cross-platform.
+3. Package Files Normalized & Authoritative Hashes Certified:
+   All behavior-defining text files in 'models/v0001/', 'models/v0002/', and
+   'models/v_promotable/' normalized to LF on disk. Manifests updated with
+   authoritative LF hashes:
+   - models/v0001:        sha256:19baaf437a2e6158fe4cbb542ddc7a7a61474076d74839eaea932d4d3c94ff5f
+   - models/v0002:        sha256:1eb0dc7488fddc616f0be7413e9cc48fd4139932ff43da81927e2a335d714d62
+   - models/v_promotable: sha256:f004e6273345a37ac01e55c60209b231448fa85f73dada908f07e412c07a6061
+4. 'scripts/make_submission.py' ('make run'):
+   Updated to emit 'backlog_report.json' (first scored week 2026-02-02) alongside
+   'predictions.csv', closing the operational backlog intelligence gap for fresh
+   clones.
+5. 'tests/unit/test_frontend_shell.py':
+   Hermetically isolated 'test_replay_provenance_truthful_nullability' to a temporary
+   clean root so pre-existing rollback history in the workspace does not mask
+   baseline nullability assertions.
+
+================================================================================
+2. ACCEPTANCE BAR EXECUTION RESULTS
+================================================================================
+
+[BAR 1] pytest tests/unit/test_rollback.py -v
+Command: python -m pytest tests/unit/test_rollback.py -v
+Exit Code: 0
+Output:
+============================= test session starts =============================
+platform win32 -- Python 3.14.5, pytest-9.0.3, pluggy-1.6.0
+rootdir: C:\Users\dorni\OneDrive\Desktop\lpdg
+configfile: pyproject.toml
+plugins: anyio-4.13.0, hypothesis-6.165.9, cov-7.1.0, schemathesis-4.24.3
+collecting ... collected 9 items
+
+tests/unit/test_rollback.py::test_rollback_restores_previous_prediction PASSED [ 11%]
+tests/unit/test_rollback.py::test_invalid_rollback_target_leaves_active_unchanged PASSED [ 22%]
+tests/unit/test_rollback.py::test_post_switch_replay_mismatch_executes_compensating_rollback_restoring_active PASSED [ 33%]
+tests/unit/test_rollback.py::test_target_validation_verifies_actual_artifact_hash PASSED [ 44%]
+tests/unit/test_rollback.py::test_default_operational_command_enforces_expected_replay_equality PASSED [ 55%]
+tests/unit/test_rollback.py::test_rollback_corrupted_target_rejected PASSED [ 66%]
+tests/unit/test_rollback.py::test_rollback_same_version_rejected PASSED  [ 77%]
+tests/unit/test_rollback.py::test_rollback_retains_candidate PASSED      [ 88%]
+tests/unit/test_rollback.py::test_rollback_cli_execution PASSED          [100%]
+
+======================== 9 passed in 91.37s (0:01:31) =========================
+
+
+[BAR 2] make run (scripts/make_submission.py --data ./data) + validate_submission.py
+Command: python scripts/make_submission.py --data ./data
+Exit Code: 0
+Output:
+Wrote predictions.csv - 120 rows over 8 weeks
+Backlog report written to backlog_report.json
+Submission validated successfully by validate_submission.py: PASS
+Run provenance record written to runs\prediction\run.json
+
+Command: python validate_submission.py predictions.csv
+Exit Code: 0
+Output:
+predictions.csv: OK
+  15 ranked gateways for each of 8 weeks, 2026-02-02 to 2026-03-23
+
+
+[BAR 3] make rollback (scripts/rollback.py)
+Command: python scripts/rollback.py
+Exit Code: 0
+Output:
+Notice: Active model is baseline v0001.
+Executing canonical rollback demonstration: simulated active v0002 -> rollback to v0001.
+
+Current active: v0002
+Rollback target: v0001
+Target validation: PASS
+Target Validation Passed: True
+Pre-rollback replay hash: sha256:495dc89349d49fb6670fecbc071f89afbb1b2636bcb77fb433a6d0fb09ab13da
+Atomic switch: PASS
+Post-rollback replay hash: sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+Replay equality: PASS
+Replay Equality Verified: True
+Active model: v0001
+Active Restored: v0001
+
+
+[BAR 4] make test (pytest tests/)
+Command: python -m pytest tests/ -q
+Exit Code: 0
+Output:
+........................................................................ [ 27%]
+........................................................................ [ 54%]
+........................................................................ [ 82%]
+..............................................                           [100%]
+262 passed in 474.17s (0:07:54)
+
+Total Tests: 262 passed (224 core backend + 38 frontend), 0 failed, 0 skipped.
+
+================================================================================
+3. CONTRACT MATRIX & VERDICT
+================================================================================
+Contract Item                                Status  Evidence
+--------------------------------------------------------------------------------
+Authoritative LF Artifact Hashing            PASS    compute_artifact_hash normalizes LF; declared == computed
+v0001 Cryptographic Package Binding          PASS    sha256:19baaf437a2e6158fe4cbb542ddc7a7a61474076d74839eaea932d4d3c94ff5f
+v0002 Cryptographic Package Binding          PASS    sha256:1eb0dc7488fddc616f0be7413e9cc48fd4139932ff43da81927e2a335d714d62
+v_promotable Cryptographic Package Binding   PASS    sha256:f004e6273345a37ac01e55c60209b231448fa85f73dada908f07e412c07a6061
+Cross-Platform Git Attributes (* text=auto)  PASS    .gitattributes eol=lf active
+Target Validation Pre-Switch Assertion       PASS    validate_rollback_target passes all 3 models cleanly
+Compensating Rollback Transaction Safety     PASS    test_rollback.py passes 9/9
+Atomic Switch & Deterministic Replay Proof   PASS    make rollback passes replay equality verification
+8-Week Submission & Official Validation      PASS    make run generates 120/120 + validate_submission.py PASS
+Backlog Report Operational Continuity        PASS    backlog_report.json emitted on make run (275 deferred)
+Full Regression Test Suite                   PASS    262/262 passed, 0 failed, 0 skipped
+================================================================================
+OVERALL VERDICT: PASS / SUBMISSION READY
+================================================================================

@@ -235,14 +235,16 @@ class TestFrontendShell(unittest.TestCase):
     def test_replay_provenance_truthful_nullability(self):
         """Verify replay provenance fails closed to UNAVAILABLE when proof is absent."""
         from frontend.server import check_replay_provenance
-        # Baseline state without rollback report should be UNAVAILABLE
-        res = check_replay_provenance()
-        self.assertEqual(res["status"], "UNAVAILABLE")
-        self.assertIn("not substantiated", res["reason"])
-        self.assertEqual(res["target_validation"], "UNAVAILABLE")
-        self.assertEqual(res["atomic_switch"], "UNAVAILABLE")
-        self.assertEqual(res["replay_equality"], "UNAVAILABLE")
-        self.assertEqual(res["restored_version"], "UNAVAILABLE")
+        with tempfile.TemporaryDirectory() as td:
+            empty_root = pathlib.Path(td)
+            with patch("frontend.server.REPO_ROOT", empty_root):
+                res = check_replay_provenance()
+                self.assertEqual(res["status"], "UNAVAILABLE")
+                self.assertIn("not substantiated", res["reason"])
+                self.assertEqual(res["target_validation"], "UNAVAILABLE")
+                self.assertEqual(res["atomic_switch"], "UNAVAILABLE")
+                self.assertEqual(res["replay_equality"], "UNAVAILABLE")
+                self.assertEqual(res["restored_version"], "UNAVAILABLE")
 
     def test_replay_provenance_substantiated_with_rollback_event(self):
         """Verify replay provenance returns VERIFIED and properties when rollback is substantiated."""

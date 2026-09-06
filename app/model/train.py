@@ -75,11 +75,19 @@ def assert_clean_working_tree(file_path: pathlib.Path) -> None:
         )
 
 
+def _write_canonical_text(path: pathlib.Path, content: str) -> None:
+    """Write text file with strictly canonical UTF-8 LF line endings."""
+    normalized = content.replace("\r\n", "\n")
+    path.write_bytes(normalized.encode("utf-8"))
+
+
 def compute_artifact_hash(model_dir: pathlib.Path) -> str:
     """Compute SHA256 covering immutable behavior-defining artifact files per v25 Section 6.
 
     Hash covers: canonical model.joblib + model_config.json + feature_schema.json + scorer_identity.txt.
     schema.json is validated as part of the artifact contract but is not duplicated into hash inputs.
+    Text files are normalized to UTF-8 LF endings per v25 Section 6 / Rule 10 to guarantee
+    bit-for-bit cross-platform reproducibility across Windows, Linux, and Git checkouts.
     """
     hasher = hashlib.sha256()
     # Canonical order of behavior-defining artifact files per v25 Section 6
@@ -89,7 +97,10 @@ def compute_artifact_hash(model_dir: pathlib.Path) -> str:
         if not fpath.exists():
             raise FileNotFoundError(f"Required behavior-defining artifact file missing for hash: {fpath}")
         hasher.update(fname.encode("utf-8"))
-        hasher.update(fpath.read_bytes())
+        raw_bytes = fpath.read_bytes()
+        if fname.endswith((".json", ".txt")):
+            raw_bytes = raw_bytes.replace(b"\r\n", b"\n")
+        hasher.update(raw_bytes)
     return f"sha256:{hasher.hexdigest()}"
 
 
@@ -211,11 +222,11 @@ def train_candidate(
         }
         evidence_quality = "baseline"
 
-    (target_dir / "model_config.json").write_text(
-        json.dumps(config_data, indent=2), encoding="utf-8"
+    _write_canonical_text(
+        target_dir / "model_config.json", json.dumps(config_data, indent=2)
     )
-    (target_dir / "feature_schema.json").write_text(
-        json.dumps(feature_schema_data, indent=2), encoding="utf-8"
+    _write_canonical_text(
+        target_dir / "feature_schema.json", json.dumps(feature_schema_data, indent=2)
     )
 
     # 6. Authoritative schema.json
@@ -237,8 +248,8 @@ def train_candidate(
         "time_grain": "hourly",
         "timestamp_column": "ts_utc",
     }
-    (target_dir / "schema.json").write_text(
-        json.dumps(schema_dict, indent=2), encoding="utf-8"
+    _write_canonical_text(
+        target_dir / "schema.json", json.dumps(schema_dict, indent=2)
     )
 
     # 7. Write scorer_identity.txt with cryptographic binding and clean-tree assertion per v25 Section 6
@@ -259,8 +270,8 @@ def train_candidate(
         else:
             scorer_identity_content = "baseline_3sigma.py:frozen_reference\n"
 
-    (target_dir / "scorer_identity.txt").write_text(
-        scorer_identity_content, encoding="utf-8"
+    _write_canonical_text(
+        target_dir / "scorer_identity.txt", scorer_identity_content
     )
 
     # 7b. Serialize canonical model state into model.joblib per Section 6 / v25
@@ -309,8 +320,8 @@ def train_candidate(
         "feature_selection_frozen_at": "2026-09-05T00:00:00Z",
         "software_lock_version": "requirements.lock",
     }
-    (target_dir / "manifest.json").write_text(
-        json.dumps(manifest_data, indent=2), encoding="utf-8"
+    _write_canonical_text(
+        target_dir / "manifest.json", json.dumps(manifest_data, indent=2)
     )
 
     # 10. Write metrics.json
@@ -327,8 +338,8 @@ def train_candidate(
     if candidate_version == "v0002":
         metrics_data["weights"] = config_data.get("weights", {})
 
-    (target_dir / "metrics.json").write_text(
-        json.dumps(metrics_data, indent=2), encoding="utf-8"
+    _write_canonical_text(
+        target_dir / "metrics.json", json.dumps(metrics_data, indent=2)
     )
 
     # 11. Write Training Evidence Record to runs/training/

@@ -42,6 +42,12 @@ def main() -> None:
         help="Output CSV path (default: predictions.csv)",
     )
     parser.add_argument(
+        "--backlog-report",
+        type=pathlib.Path,
+        default=pathlib.Path("backlog_report.json"),
+        help="Output backlog economics JSON report (default: backlog_report.json)",
+    )
+    parser.add_argument(
         "--skip-validation",
         action="store_true",
         help="Skip automatic validate_submission.py invocation",
@@ -61,6 +67,7 @@ def main() -> None:
 
     all_predictions: list[dict[str, str | int | float]] = []
     all_canonical_inputs: list[bytes] = []
+    first_week_backlog = None
 
     for monday in SCORED_WEEKS:
         try:
@@ -68,6 +75,9 @@ def main() -> None:
         except (ModelArtifactError, InsufficientEligibleGatewaysError, FileNotFoundError) as exc:
             print(f"ERROR: Inference failed for week {monday}: {exc}", file=sys.stderr)
             sys.exit(1)
+
+        if first_week_backlog is None and "backlog_report" in result:
+            first_week_backlog = result["backlog_report"]
 
         preds = result["predictions"]
         if len(preds) != 15:
@@ -91,6 +101,15 @@ def main() -> None:
             ])
 
     print(f"Wrote {args.output} - {len(all_predictions)} rows over {len(SCORED_WEEKS)} weeks")
+
+    # Write backlog report for first scored week (Section 9 / Section 17 Ops Console)
+    if first_week_backlog is not None:
+        import json
+        args.backlog_report.parent.mkdir(parents=True, exist_ok=True)
+        args.backlog_report.write_text(
+            json.dumps(first_week_backlog, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"Backlog report written to {args.backlog_report}")
 
     # Run official validator if present
     validator_path = root_dir / "validate_submission.py"
@@ -124,6 +143,7 @@ def main() -> None:
         replay_hash=submission_replay_hash,
         predictions_file_hash=predictions_file_hash,
         output_file=str(args.output),
+        backlog_file=str(args.backlog_report) if first_week_backlog is not None else None,
         data_dir=str(args.data),
     )
     print(f"Run provenance record written to {args.run_record}")

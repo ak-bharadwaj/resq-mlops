@@ -77,7 +77,6 @@ def main() -> None:
         except Exception:
             pass
 
-    print(f"Active model: {active_version}")
     print(f"Data source: {args.data.resolve()}")
     print(f"Week: {args.week} | Eligible gateways: {eligible_count} of {len(master_df)}")
 
