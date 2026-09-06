@@ -6,7 +6,7 @@ Implementation Commit SHA:   db9bb317d36b373078b2b72231ec0b63911a02af
 Registry State Commit SHA:   493e2f8836528d9c57d771b95f2a15993ab9cbb4
 Parent Commit SHA:           95347c4c3130f461308a20a2654070837db920cc
 Branch:                      main
-Remote Repository:           https://github.com/ak-bharadwaj/resq-mlops.git (PRIVATE)
+Remote Repository:           https://github.com/ak-bharadwaj/resq-mlops.git (PUBLIC)
 Operating System:            Windows 11 / win32
 Python Interpreter:          C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe (Python 3.14.5)
 Test Framework:              pytest 9.0.3, hypothesis 6.165.9, schemathesis 4.24.3

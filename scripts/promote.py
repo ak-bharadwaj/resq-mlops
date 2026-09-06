@@ -7,7 +7,8 @@ Frozen Architecture References:
 - Strict Phase Invariants: Evaluates candidate against active across 3 rolling windows
   and grouped holdout. If PROMOTE, atomically updates registry/active.json.
   If REJECT, leaves registry/active.json byte-for-byte untouched (v0001 remains active).
-- Monotonic Time Authority: Zero system clock calls.
+- Operational Timestamp Authority: CLI captures real UTC execution time and injects
+  it into the deterministic core state-transition functions.
 """
 from __future__ import annotations
 
