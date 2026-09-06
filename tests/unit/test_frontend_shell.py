@@ -81,10 +81,18 @@ class TestFrontendShell(unittest.TestCase):
         self.assertIn('id="final-gate-deployment"', html_content)
         self.assertIn('id="final-gate-protection"', html_content)
 
-        # Task 2: Interactive Drawers (Drilldown & Fail-Closed)
-        self.assertIn('id="evidence-drilldown-drawer"', html_content)
-        self.assertIn('id="drilldown-windows-container"', html_content)
-        self.assertIn('id="drilldown-holdout-container"', html_content)
+        # Task 2: Interactive Evidence Review Modal & Fail-Closed Drawer
+        self.assertIn('id="open-evidence-btn"', html_content)
+        self.assertIn('id="evidence-modal"', html_content)
+        self.assertIn('id="close-evidence-btn"', html_content)
+        self.assertIn('id="modal-candidate"', html_content)
+        self.assertIn('id="modal-active"', html_content)
+        self.assertIn('id="modal-aggregate-counts"', html_content)
+        self.assertIn('id="modal-improvement"', html_content)
+        self.assertIn('id="final-decision-badge"', html_content)
+        self.assertIn('id="final-decision-code"', html_content)
+        self.assertIn('id="modal-final-deployment"', html_content)
+        self.assertIn('id="modal-final-protection"', html_content)
         self.assertIn('id="fail-closed-drawer"', html_content)
 
         # Task 2: Evidence-Quality Indicators
@@ -116,16 +124,54 @@ class TestFrontendShell(unittest.TestCase):
         self.assertIn('id="rollback-reason"', html_content)
         self.assertIn('id="lifecycle-replay"', html_content)
 
-    def test_promotion_artifact_derived_counts(self):
-        """Verify load_json_artifact dynamically derives 71 vs 60 window missed weeks."""
+    def test_real_promotion_artifact_three_windows_rendered(self):
+        """Verify real promotion decision contains 3 distinct development rolling windows with valid counts."""
+        res = load_json_artifact("runs/promotion/promotion_decision_v0002.json")
+        self.assertEqual(res.get("status"), "AVAILABLE")
+        data = res.get("data", {})
+        window_results = data.get("window_results", {})
+        self.assertEqual(len(window_results), 3, "Must have exactly 3 development rolling windows")
+        
+        expected_windows = ["window_1", "window_2", "window_3"]
+        for wid in expected_windows:
+            self.assertIn(wid, window_results)
+            w = window_results[wid]
+            self.assertIn("active_missed_broken_weeks", w)
+            self.assertIn("candidate_missed_broken_weeks", w)
+            self.assertIsInstance(w["active_missed_broken_weeks"], int)
+            self.assertIsInstance(w["candidate_missed_broken_weeks"], int)
+            self.assertFalse(w.get("is_regression", True), "All dev windows must pass without regression")
+
+    def test_real_promotion_artifact_71_vs_60_derived(self):
+        """Verify dynamic derivation of aggregate 71 vs 60 missed broken weeks and 15.49% improvement."""
         res = load_json_artifact("runs/promotion/promotion_decision_v0002.json")
         self.assertEqual(res.get("status"), "AVAILABLE")
         data = res.get("data", {})
         self.assertEqual(data.get("total_active_missed"), 71)
         self.assertEqual(data.get("total_candidate_missed"), 60)
+        self.assertEqual(data.get("aggregate_improvement_percent"), 15.49)
 
-    def test_promotion_artifact_missing_window_counts_no_zero_fallback(self):
-        """Verify load_json_artifact sets totals to None rather than 0 when window counts are incomplete."""
+    def test_real_promotion_artifact_17_vs_18_holdout_derived(self):
+        """Verify grouped holdout on 59 unseen gateways derives 17 vs 18 missed weeks (regression)."""
+        res = load_json_artifact("runs/promotion/promotion_decision_v0002.json")
+        self.assertEqual(res.get("status"), "AVAILABLE")
+        data = res.get("data", {})
+        holdout = data.get("grouped_holdout_result", {})
+        self.assertEqual(holdout.get("holdout_gateways_count"), 59)
+        self.assertEqual(holdout.get("active_missed_broken_weeks"), 17)
+        self.assertEqual(holdout.get("candidate_missed_broken_weeks"), 18)
+        self.assertEqual(holdout.get("differential"), -1)
+        self.assertFalse(holdout.get("directional_agreement"), "Holdout must report directional disagreement")
+
+    def test_missing_promotion_artifact_entire_evidence_unavailable(self):
+        """Verify that when promotion artifact is missing, server returns explicit UNAVAILABLE without fabricating."""
+        res = load_json_artifact("runs/promotion/nonexistent_artifact.json")
+        self.assertEqual(res.get("status"), "UNAVAILABLE")
+        self.assertIn("not found on disk", res.get("reason", ""))
+        self.assertNotIn("total_active_missed", res.get("data", {}))
+
+    def test_missing_one_window_field_renders_unavailable_never_zero(self):
+        """Verify load_json_artifact sets totals to None rather than 0 when any window count is incomplete."""
         fixture_data = {
             "window_results": {
                 "window_1": {"active_missed_broken_weeks": 10},  # candidate_missed_broken_weeks missing
@@ -142,6 +188,46 @@ class TestFrontendShell(unittest.TestCase):
             self.assertEqual(res.get("status"), "AVAILABLE")
             self.assertIsNone(res["data"]["total_active_missed"])
             self.assertIsNone(res["data"]["total_candidate_missed"])
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def test_missing_holdout_field_renders_unavailable(self):
+        """Verify that missing holdout fields are preserved as absent without default values."""
+        fixture_data = {
+            "candidate_version": "v0002",
+            "decision": "REJECT"
+            # grouped_holdout_result entirely missing
+        }
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, dir=self.repo_root) as tf:
+            json.dump(fixture_data, tf)
+            temp_path = pathlib.Path(tf.name)
+
+        try:
+            rel_path = str(temp_path.relative_to(self.repo_root))
+            res = load_json_artifact(rel_path)
+            self.assertEqual(res.get("status"), "AVAILABLE")
+            self.assertNotIn("grouped_holdout_result", res["data"])
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
+    def test_wrong_or_incomplete_decision_no_fabricated_verdict(self):
+        """Verify that an incomplete promotion artifact does not fabricate a decision verdict."""
+        fixture_data = {
+            "candidate_version": "v0002"
+            # decision and reason_code missing
+        }
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, dir=self.repo_root) as tf:
+            json.dump(fixture_data, tf)
+            temp_path = pathlib.Path(tf.name)
+
+        try:
+            rel_path = str(temp_path.relative_to(self.repo_root))
+            res = load_json_artifact(rel_path)
+            self.assertEqual(res.get("status"), "AVAILABLE")
+            self.assertIsNone(res["data"].get("decision"))
+            self.assertIsNone(res["data"].get("reason_code"))
         finally:
             if temp_path.exists():
                 temp_path.unlink()
