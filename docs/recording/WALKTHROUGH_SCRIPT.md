@@ -94,18 +94,23 @@ Conforming strictly to Challenge Brief Part 1 Section 7 and ARCHITECTURE_v25_FRE
   > 
   > This gives dispatch managers the business justification to request emergency overtime or reallocate regional contractor capacity."*
 
-### 6:15 – 7:15: Atomic Rollback Demonstration with Bit-for-Bit Replay Proof
+### 6:15 – 7:15: Atomic Rollback Demonstration with Bit-for-Bit Replay Proof (`v_promotable` → `v0001`)
 - **Screen Action**: Run `python scripts/rollback.py` in the terminal.
 - **Terminal Commands**:
   ```bash
   python scripts/rollback.py
   ```
 - **Spoken Dialogue**:
-  > *"If an emergency occurs in production, we do not redeploy code or wait for a Git revert. We invoke `scripts/rollback.py`.
+  > *"Because candidate `v0002` was legitimately rejected by our promotion gate, production remained safely anchored on `v0001`. To demonstrate our atomic rollback machinery without violating governance rules or falsely deploying an unvetted candidate, the architecture includes a committed deterministic fixture: `v_promotable`.
   > 
-  > The rollback engine performs a five-point pre-validation: checking manifest integrity, schema contracts, config files, artifact hashes, and running a live smoke prediction. Only if all checks pass does it atomically swap `registry/active.json` via an `os.replace` filesystem call taking less than 1 millisecond.
+  > When we invoke `scripts/rollback.py`, it executes our canonical rollback rehearsal: rolling back from active `v_promotable` to restore baseline `v0001`.
   > 
-  > Most importantly, we assert cryptographic replay equality: the restored `v0001` model produces the exact, bit-for-bit identical prediction hash as our pre-promotion baseline. Replay equality: PASS."*
+  > Notice the five-point safety lifecycle:
+  > 1. Target Validation: It validates target package `v0001` before touching the registry, verifying manifest integrity, config schemas, and cryptographic `artifact_hash`.
+  > 2. Pre-Rollback Hash: It captures the current active replay hash.
+  > 3. Atomic Switch: It swaps `registry/active.json` via an atomic filesystem call in less than 1 millisecond.
+  > 4. Replay Proof: It runs post-switch prediction and proves bit-for-bit deterministic replay equality against the expected baseline prediction hash.
+  > 5. Active Restored: Registry state confirms `v0001` is restored. Replay equality: PASS."*
 
 ### 7:15 – 8:00: Empirical Fleet Boundaries & Two-Week Operational Delta
 - **Screen Action**: Display `LIMITATIONS.md` Sections 1 and 5.

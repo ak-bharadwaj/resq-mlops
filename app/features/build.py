@@ -81,12 +81,9 @@ def extract_candidate_features(
     start_utc = cutoff_utc - dt.timedelta(days=baseline_days)
     recent_start_utc = cutoff_utc - dt.timedelta(days=recent_days)
 
-    # 2. Holdout Protection Guard (Rule 8)
+    # 2. Holdout Protection Guard (Rule 8, Fail-Closed)
     if holdout_gateways is None and not allow_holdout:
-        try:
-            holdout_gateways = load_group_holdout_ids()
-        except FileNotFoundError:
-            holdout_gateways = set()
+        holdout_gateways = load_group_holdout_ids()
 
     if holdout_gateways and not allow_holdout:
         for gid in eligible_gateways:

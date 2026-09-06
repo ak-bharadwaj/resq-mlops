@@ -73,5 +73,5 @@ Per Challenge Brief Part 1 Section 7 and ARCHITECTURE_v25_FREEZE.md Section 17, 
   4. `3:15 - 4:15`: Inference determinism, Monday 00:00 UTC cutoff firewall, and schema drift detection.
   5. `4:15 - 5:15`: Evidence gate: multi-window rolling backtest, grouped holdout disagreement, and deterministic rejection of `v0002` (production preserved on `v0001`).
   6. `5:15 - 6:15`: Backlog economics: 15-visit weekly cap (€45,600 baseline) and deferred risk in `backlog_report.json`.
-  7. `6:15 - 7:15`: Atomic rollback demonstration (`scripts/rollback.py`) with pre-validation and bit-for-bit replay proof.
+  7. `6:15 - 7:15`: Atomic rollback demonstration (`scripts/rollback.py`) with pre-validation and bit-for-bit replay proof (`v_promotable` → `v0001`).
   8. `7:15 - 8:00`: Measured telemetry coverage blind spot (12 unprovisioned gateways) and what two additional weeks would buy.
