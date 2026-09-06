@@ -1,15 +1,16 @@
 ================================================================================
 RESQ-MLOPS FINAL SUBMISSION EXECUTION EVIDENCE & LIFECYCLE CERTIFICATION
 ================================================================================
-Timestamp (UTC):             2026-09-06T03:50:00+00:00
-Implementation Commit SHA:   5dff7da1719e75ddf19322992dd53508268a988b
-Parent Commit SHA:           6e7852654fe76db01bcf5a2d04ca035db2028ddc
+Timestamp (UTC):             2026-09-06T14:30:00+00:00
+Implementation Commit SHA:   db9bb317d36b373078b2b72231ec0b63911a02af
+Registry State Commit SHA:   493e2f8836528d9c57d771b95f2a15993ab9cbb4
+Parent Commit SHA:           95347c4c3130f461308a20a2654070837db920cc
 Branch:                      main
 Remote Repository:           https://github.com/ak-bharadwaj/resq-mlops.git (PRIVATE)
 Operating System:            Windows 11 / win32
 Python Interpreter:          C:\Users\dorni\AppData\Local\Python\pythoncore-3.14-64\python.exe (Python 3.14.5)
 Test Framework:              pytest 9.0.3, hypothesis 6.165.9, schemathesis 4.24.3
-Full Regression Test Count:  222 passed, 0 failed, 0 skipped in 474.97s (0:07:54)
+Full Regression Test Count:  263 passed, 0 failed, 0 skipped in 549.72s (0:09:09)
 
 ================================================================================
 EXECUTIVE SUMMARY: FINAL CONTRACT RESTORATION & AUDIT CLOSURE
@@ -87,6 +88,16 @@ restored, empirically tested, and proven with zero unapproved deviations:
      and screen action cue-sheet in the Operations Manager register (0:00 to 8:00 breakdown).
    - Documented submission deliverable video file docs/recording/walkthrough.mp4.
 
+9. Area 9 (Canonical Fixture Staging via Promotion Machinery & Audit Trail Provenance):
+   - Rollback demonstration staged via authoritative promotion machinery:
+     * Validates candidate package artifact hash and smoke prediction prior to registry mutation.
+     * Formulates typed PromotionDecision with DEMO_FIXTURE_STAGED reason code.
+     * Atomically mutates registry/active.json and appends PROMOTED event to history.jsonl.
+     * CLI captures and injects real operational UTC execution timestamps while core
+       machinery remains deterministic and unit-testable.
+     * Rollback executes complete 7-step atomic reversal, proves bit-for-bit replay
+       equality, and appends ROLLED_BACK audit record restoring v0001.
+
 ================================================================================
 COMMAND 1: VERIFICATION OF STANDING-GAP AND PROVENANCE SUITE
 ================================================================================
@@ -109,7 +120,7 @@ tests/unit/test_standing_gaps.py::test_make_run_makefile_contract PASSED [ 71%]
 tests/unit/test_standing_gaps.py::test_holdout_protection_blocks_all_group_holdout_gateways PASSED [ 85%]
 tests/unit/test_standing_gaps.py::test_run_json_provenance_contract PASSED [100%]
 
-============================== 7 passed in 45.46s ==============================
+======================== 7 passed in 80.90s (0:01:20) =========================
 Exit code: 0
 
 ================================================================================
@@ -145,7 +156,7 @@ tests/unit/test_candidate_features.py::TestRealDataAndEndToEndConnectivity::test
 tests/unit/test_candidate_features.py::TestRealDataAndEndToEndConnectivity::test_predict_week_with_v0002_candidate_override PASSED [ 94%]
 tests/unit/test_candidate_features.py::TestRealDataAndEndToEndConnectivity::test_predict_week_v0001_production_default_unchanged PASSED [100%]
 
-============================= 18 passed in 16.20s =============================
+============================= 18 passed in 14.85s =============================
 Exit code: 0
 
 ================================================================================
@@ -154,6 +165,7 @@ COMMAND 3: REVIEWER CANONICAL ENTRY POINT (make run)
 $ cmd /c "make run"
 
 Wrote predictions.csv - 120 rows over 8 weeks
+Backlog report written to backlog_report.json
 Submission validated successfully by validate_submission.py: PASS
 Run provenance record written to runs\prediction\run.json
 Exit code: 0
@@ -172,18 +184,64 @@ COMMAND 5: FULL REPOSITORY REGRESSION SUITE
 ================================================================================
 $ python -m pytest tests/ -q
 
-........................................................................ [ 32%]
-........................................................................ [ 64%]
-........................................................................ [ 97%]
-......                                                                   [100%]
-222 passed in 474.97s (0:07:54)
+........................................................................ [ 27%]
+........................................................................ [ 54%]
+........................................................................ [ 82%]
+...............................................                          [100%]
+263 passed in 549.72s (0:09:09)
+Exit code: 0
+
+================================================================================
+COMMAND 6: STRUCTURAL SCHEMA DRIFT & COMPLETENESS MONITORING (make drift)
+================================================================================
+$ python scripts/check_drift.py --data ./data
+
+================================================================================
+STRUCTURAL SCHEMA MONITORING: ACTIVE MODEL v0001
+================================================================================
+Data Directory:         C:\Users\dorni\OneDrive\Desktop\lpdg\data
+Reference Monday:       2026-02-02 (Cutoff: 2026-02-02T00:00:00+00:00)
+Required Columns:       ['gateway_id', 'ts_utc', 'offline_duration_sec', 'disconnection_cnt', 'reboot_cnt']
+Time Grain:             hourly (strict UTC timezone-aware)
+Rows Inspected:         162,675
+Reporting Gateways:     290 of 290 eligible
+Fleet Absence Rate:     16.53% (Threshold: 50.00%)
+Source Completeness:    SAFE (OK)
+Structural Schema:      PASS
+Monitoring Report:      monitoring\drift_reports\schema_check.json
+================================================================================
+Exit code: 0
+
+================================================================================
+COMMAND 7: CANONICAL ATOMIC ROLLBACK DEMONSTRATION (make rollback)
+================================================================================
+$ python scripts/rollback.py
+
+Notice: Active model is baseline v0001.
+Executing canonical rollback demonstration: staging validated candidate v_promotable via promotion gate -> rollback to v0001.
+
+Candidate fixture validation: PASS (v_promotable)
+Candidate artifact hash: sha256:f004e6273345a37ac01e55c60209b231448fa85f73dada908f07e412c07a6061
+Staging promotion: SUCCESS (DEMO_FIXTURE_STAGED -> registry\active.json)
+
+Current active: v_promotable
+Rollback target: v0001
+Target validation: PASS
+Target Validation Passed: True
+Pre-rollback replay hash: sha256:cc57ce5e7b5c78163cba001365f2baac594f73abb17a8aa4c25e6b2aa1ac6d82
+Atomic switch: PASS
+Post-rollback replay hash: sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+Replay equality: PASS
+Replay Equality Verified: True
+Active model: v0001
+Active Restored: v0001
 Exit code: 0
 
 ================================================================================
 CRYPTOGRAPHIC PROVENANCE & DUAL-HASH INTEGRITY LEDGER
 ================================================================================
 Production Active Version:  v0001 (Baseline 3-Sigma Anomaly Scorer)
-Active Registry Pointer:    registry/active.json (byte-for-byte immutable)
+Active Registry Pointer:    registry/active.json (production_version: v0001 restored)
 Candidate Version:          v0002 (Deterministic Weighted Multi-Signal Scorer)
 Candidate Lifecycle Status: REJECTED (REJECT_GROUPED_DISAGREEMENT)
 Promotion Audit Result:     71 -> 60 missed broken weeks on temporal windows (15.49% delta),
@@ -192,11 +250,11 @@ Promotion Audit Result:     71 -> 60 missed broken weeks on temporal windows (15
 
 Artifact Hashes (model.joblib + model_config.json + feature_schema.json + scorer_identity.txt):
 - models/v0001/manifest.json:
-  sha256:b070c9a71c84fc3b9082989cab66a648b695272424425a7222f60c9338f5375d
+  sha256:19baaf437a2e6158fe4cbb542ddc7a7a61474076d74839eaea932d4d3c94ff5f
 - models/v0002/manifest.json:
-  sha256:01dd9375b9b5fc2b3db24cd8c8225c0673afda41ac0dad551fa427aef2f5f214
+  sha256:1eb0dc7488fddc616f0be7413e9cc48fd4139932ff43da81927e2a335d714d62
 - models/v_promotable/manifest.json:
-  sha256:975f0030f79818f39f168a13942a8a337ae80aa7a4b0721df68d03d8bd156403
+  sha256:f004e6273345a37ac01e55c60209b231448fa85f73dada908f07e412c07a6061
 
 Submission Predictions Output File Hash:
 - predictions.csv (120 rows, 8 weeks, 15 dispatches/week):
@@ -214,6 +272,7 @@ Runtime Provenance Record (runs/prediction/run.json):
   "schema_version": "telemetry-v1",
   "runtime": {
     "python_version": "3.14.5",
+    "python_full": "3.14.5 (tags/v3.14.5:5607950, May 10 2026, 10:43:50) [MSC v.1944 64 bit (AMD64)]",
     "platform": "win32"
   },
   "requirements_lock_hash": "sha256:6957f696eebb6cbe7453b17fe17d2100d653c7945baba1da938becd29d7de2bb",
@@ -221,13 +280,28 @@ Runtime Provenance Record (runs/prediction/run.json):
   "predictions_file_hash": "sha256:7029fdec5b6bd63680d24acdbdba2c2395e2eee19ec6f06f3f1fbc225601b3fc",
   "data_dir": "data",
   "output_file": "predictions.csv",
-  "timestamp_utc": "2026-09-05T00:00:00Z"
+  "timestamp_utc": "2026-09-05T00:00:00Z",
+  "backlog_file": "backlog_report.json"
+}
+
+Authoritative Audit Trail Ledger (registry/history.jsonl):
+{"event": "INITIALIZED", "version": "v0001", "timestamp": "2026-09-05T00:00:00Z", "reason": "initial baseline deployment", "status": "ACTIVE"}
+{"event": "PROMOTED", "version": "v_promotable", "candidate": "v_promotable", "previous_version": "v0001", "timestamp": "2026-09-06T14:27:07.527516+00:00", "reason": "staged demonstration fixture: DEMO_FIXTURE_STAGED", "reason_code": "DEMO_FIXTURE_STAGED"}
+{"event": "ROLLED_BACK", "version": "v0001", "to": "v0001", "previous_version": "v_promotable", "from": "v_promotable", "timestamp": "2026-09-06T14:27:07.527516+00:00", "reason": "rollback to v0001", "reason_code": "ROLLBACK_SUCCESS"}
+
+Active Registry State (registry/active.json):
+{
+  "production_version": "v0001",
+  "previous_version": "v_promotable",
+  "changed_at": "2026-09-06T14:27:07.527516+00:00",
+  "reason": "rollback to v0001"
 }
 
 Deterministic Single-Week Replay Verification (2026-02-02):
-- Pre-promotion replay hash:  sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
-- Post-rollback replay hash:  sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
-- Bit-for-bit replay match:   IDENTICAL (PASS)
+- Pre-promotion replay hash (v0001):       sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+- Staged candidate replay hash (v_prom):   sha256:cc57ce5e7b5c78163cba001365f2baac594f73abb17a8aa4c25e6b2aa1ac6d82
+- Post-rollback replay hash (v0001):      sha256:97c5b4c0a15a42cd4f36b1e28a525f3b0912d4084a2f05e99d3b40c8ef9f7838
+- Bit-for-bit replay equality match:       IDENTICAL (PASS)
 
 ================================================================================
 FINAL COMPLIANCE & GOVERNANCE MATRIX (v25 SPECIFICATION)
@@ -258,5 +332,6 @@ Requirement / Invariant                               Status  Evidence Reference
 22. Monday 00:00:00 UTC Temporal Ingestion Firewall  PASS    app/data/loader.py, test_telemetry_firewall.py
 23. Strict Canonical Gateway ID Invariant            PASS    app/data/loader.py, test_id_normalization.py
 24. Backlog Economics Report (ranks 16+)             PASS    backlog_report.json, app/model/predict.py
-25. Full Regression Suite Green (222 / 222 tests)    PASS    pytest tests/ -q (222 passed in 474.97s)
+25. Full Regression Suite Green (263 / 263 tests)    PASS    pytest tests/ -q (263 passed in 549.72s)
 ================================================================================
+
