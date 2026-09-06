@@ -35,6 +35,21 @@ def load_json_artifact(relative_path: str) -> dict:
     try:
         content = json.loads(file_path.read_text(encoding="utf-8"))
         if isinstance(content, dict):
+            # Dynamically derive aggregate window counts if window_results is present
+            if "window_results" in content and isinstance(content["window_results"], dict):
+                total_active = sum(
+                    int(w.get("active_missed_broken_weeks", 0))
+                    for w in content["window_results"].values()
+                    if isinstance(w, dict) and "active_missed_broken_weeks" in w
+                )
+                total_cand = sum(
+                    int(w.get("candidate_missed_broken_weeks", 0))
+                    for w in content["window_results"].values()
+                    if isinstance(w, dict) and "candidate_missed_broken_weeks" in w
+                )
+                content["total_active_missed"] = total_active
+                content["total_candidate_missed"] = total_cand
+
             return {"status": "AVAILABLE", "data": content, "file": relative_path}
         return {"status": "AVAILABLE", "data": {"raw": content}, "file": relative_path}
     except Exception as exc:
@@ -43,6 +58,67 @@ def load_json_artifact(relative_path: str) -> dict:
             "reason": f"Failed to parse '{relative_path}': {exc}",
             "file": relative_path,
         }
+
+
+def check_replay_provenance() -> dict:
+    """Check whether deterministic replay equality is substantiated by artifacts.
+
+    Strict truthful nullability:
+    - Never fabricates VERIFIED when proof is absent.
+    - If proven by registry history or run.json, returns VERIFIED with source.
+    - Otherwise returns explicit UNAVAILABLE status.
+    """
+    # 1. Check registry history for verified ROLLED_BACK event with confirmed replay_equality
+    history_file = REPO_ROOT / "registry" / "history.jsonl"
+    if history_file.exists():
+        try:
+            lines = history_file.read_text(encoding="utf-8").strip().splitlines()
+            for line in reversed(lines):
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                if record.get("event") == "ROLLED_BACK" and record.get("replay_equality") is True:
+                    return {
+                        "status": "VERIFIED",
+                        "reason": f"Substantiated by registry/history.jsonl ({record.get('timestamp')})",
+                        "source": "registry/history.jsonl",
+                    }
+        except Exception:
+            pass
+
+    # 2. Check prediction run metadata if it explicitly substantiated replay equality
+    run_file = REPO_ROOT / "runs" / "prediction" / "run.json"
+    if run_file.exists():
+        try:
+            run_data = json.loads(run_file.read_text(encoding="utf-8"))
+            if run_data.get("replay_equality_verified") is True:
+                return {
+                    "status": "VERIFIED",
+                    "reason": "Substantiated by runs/prediction/run.json (replay_equality_verified: true)",
+                    "source": "runs/prediction/run.json",
+                }
+        except Exception:
+            pass
+
+    # 3. Check dedicated rollback result if present
+    rollback_file = REPO_ROOT / "runs" / "rollback" / "rollback_result.json"
+    if rollback_file.exists():
+        try:
+            rb_data = json.loads(rollback_file.read_text(encoding="utf-8"))
+            if rb_data.get("replay_equality") is True:
+                return {
+                    "status": "VERIFIED",
+                    "reason": "Substantiated by runs/rollback/rollback_result.json",
+                    "source": "runs/rollback/rollback_result.json",
+                }
+        except Exception:
+            pass
+
+    return {
+        "status": "UNAVAILABLE",
+        "reason": "Replay equality not substantiated by run.json or rollback execution artifacts",
+        "source": None,
+    }
 
 
 def load_predictions_artifact(selected_week: str | None = None) -> dict:
@@ -119,6 +195,7 @@ class ConsoleRequestHandler(SimpleHTTPRequestHandler):
                 "prediction_run": run_rec,
                 "backlog_report": backlog,
                 "promotion_decision": promotion,
+                "replay_provenance": check_replay_provenance(),
             }
             self._send_json(response_payload)
             return

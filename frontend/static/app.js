@@ -67,7 +67,8 @@ function populateSummary(summary) {
     schema_health: schemaHealth,
     prediction_run: predRun,
     backlog_report: backlog,
-    promotion_decision: promotion
+    promotion_decision: promotion,
+    replay_provenance: replayStatus
   } = summary;
 
   // 1. Header Active Model Badge
@@ -122,19 +123,22 @@ function populateSummary(summary) {
   populateBacklogStrip(backlog);
 
   // 8. Lifecycle & Rollback Strip
-  populateLifecycleStrip(activeReg, promotion);
+  populateLifecycleStrip(activeReg, promotion, replayStatus);
 }
 
 /**
- * Populate Model Governance section.
+ * Populate Model Governance section with prominent verdict banner.
  */
 function populateGovernancePanel(promotion, activeReg) {
   const govActiveEl = document.getElementById("gov-active");
   const govCandidateEl = document.getElementById("gov-candidate");
   const govImprovementEl = document.getElementById("gov-improvement");
   const govHoldoutEl = document.getElementById("gov-holdout");
-  const govDecisionEl = document.getElementById("gov-decision");
-  const govCalloutEl = document.getElementById("gov-callout");
+
+  const bannerEl = document.getElementById("gov-verdict-banner");
+  const verdictPillEl = document.getElementById("gov-verdict-pill");
+  const verdictCodeEl = document.getElementById("gov-verdict-code");
+  const verdictSummaryEl = document.getElementById("gov-verdict-summary");
 
   const activeVer = (activeReg && activeReg.status === "AVAILABLE" && activeReg.data)
     ? activeReg.data.production_version
@@ -145,33 +149,69 @@ function populateGovernancePanel(promotion, activeReg) {
     const data = promotion.data;
     govCandidateEl.innerHTML = `<span>${data.candidate_version || "v0002"}</span> <span style="color: var(--text-dim); font-size: 11px;">(Weighted Multi-Signal)</span>`;
 
-    const imp = data.aggregate_improvement_percent;
-    const impStr = (imp !== undefined && imp !== null) ? `+${imp.toFixed(2)}%` : "--";
-    govImprovementEl.innerHTML = `<span style="color: var(--success); font-family: var(--font-mono);">${impStr}</span> <span style="color: var(--text-dim); font-size: 11px;">(142 vs 168 missed weeks)</span>`;
-
-    const holdout = data.grouped_holdout_result;
-    if (holdout) {
-      const activeMissed = holdout.active_missed_broken_weeks;
-      const candMissed = holdout.candidate_missed_broken_weeks;
-      govHoldoutEl.innerHTML = `<span style="color: var(--danger); font-family: var(--font-mono);">${candMissed} vs ${activeMissed} missed</span> <span style="color: var(--text-dim); font-size: 11px;">(Holdout Regression)</span>`;
-    } else {
-      govHoldoutEl.textContent = "--";
-    }
-
     const decision = data.decision || "REJECT";
     const decisionCode = data.reason_code || "REJECT_GROUPED_DISAGREEMENT";
     const isRejected = decision === "REJECT";
-    govDecisionEl.innerHTML = `<span class="status-pill ${isRejected ? 'pill-rejected' : 'pill-active'}">${decision}</span> <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">${decisionCode}</span>`;
 
-    govCalloutEl.className = isRejected ? "callout-box" : "callout-box success";
-    govCalloutEl.innerHTML = `<strong>Governance Gate Verdict:</strong> Candidate ${data.candidate_version} was rejected because it showed directional disagreement on the isolated holdout fleet (${holdout?.candidate_missed_broken_weeks || 18} vs ${holdout?.active_missed_broken_weeks || 17} missed broken weeks). Active ${activeVer} remains restored in production.`;
+    if (bannerEl) bannerEl.className = isRejected ? "governance-verdict-banner" : "governance-verdict-banner success";
+    if (verdictPillEl) {
+      verdictPillEl.className = isRejected ? "status-pill pill-rejected" : "status-pill pill-active";
+      verdictPillEl.textContent = `GATE: ${decision}`;
+    }
+    if (verdictCodeEl) verdictCodeEl.textContent = decisionCode;
+
+    // Dynamically derive missed broken weeks from promotion artifact (window_results)
+    const imp = data.aggregate_improvement_percent;
+    const impStr = (imp !== undefined && imp !== null) ? `+${imp.toFixed(2)}%` : "--";
+
+    let activeMissed = data.total_active_missed;
+    let candMissed = data.total_candidate_missed;
+    if ((activeMissed === undefined || candMissed === undefined) && data.window_results) {
+      activeMissed = 0;
+      candMissed = 0;
+      Object.values(data.window_results).forEach((w) => {
+        if (w && typeof w === "object") {
+          activeMissed += Number(w.active_missed_broken_weeks || 0);
+          candMissed += Number(w.candidate_missed_broken_weeks || 0);
+        }
+      });
+    }
+
+    const countsLabel = (activeMissed !== undefined && candMissed !== undefined)
+      ? `(${candMissed} vs ${activeMissed} missed weeks)`
+      : "";
+
+    govImprovementEl.innerHTML = `<span style="color: var(--success); font-family: var(--font-mono);">${impStr}</span> ${countsLabel ? `<span style="color: var(--text-dim); font-size: 11px;">${countsLabel}</span>` : ""}`;
+
+    const holdout = data.grouped_holdout_result;
+    if (holdout) {
+      const holdoutActive = holdout.active_missed_broken_weeks;
+      const holdoutCand = holdout.candidate_missed_broken_weeks;
+      govHoldoutEl.innerHTML = `<span style="color: var(--danger); font-family: var(--font-mono);">${holdoutCand} vs ${holdoutActive} missed</span> <span style="color: var(--text-dim); font-size: 11px;">(Holdout Regression)</span>`;
+
+      if (verdictSummaryEl) {
+        verdictSummaryEl.textContent = `Candidate ${data.candidate_version || "v0002"} was rejected: holdout fleet regression (${holdoutCand} vs ${holdoutActive} missed broken weeks). Active ${activeVer} remains safely in production.`;
+      }
+    } else {
+      govHoldoutEl.textContent = "--";
+      if (verdictSummaryEl) {
+        verdictSummaryEl.textContent = data.explanation || `Verdict: ${decision} (${decisionCode})`;
+      }
+    }
   } else {
     govCandidateEl.innerHTML = `<span>v0002</span> <span style="color: var(--text-dim); font-size: 11px;">(Candidate)</span>`;
     renderUnavailable(govImprovementEl, promotion?.reason);
     renderUnavailable(govHoldoutEl, promotion?.reason);
-    renderUnavailable(govDecisionEl, promotion?.reason);
-    govCalloutEl.className = "callout-box";
-    govCalloutEl.textContent = promotion?.reason || "Promotion decision artifact unavailable. Run 'make promote' to evaluate candidate.";
+
+    if (bannerEl) bannerEl.className = "governance-verdict-banner unavailable";
+    if (verdictPillEl) {
+      verdictPillEl.className = "status-pill pill-unavailable";
+      verdictPillEl.textContent = "GATE: UNAVAILABLE";
+    }
+    if (verdictCodeEl) verdictCodeEl.textContent = "ARTIFACT_NOT_FOUND";
+    if (verdictSummaryEl) {
+      verdictSummaryEl.textContent = promotion?.reason || "Promotion decision artifact unavailable. Run 'make promote' to evaluate candidate.";
+    }
   }
 }
 
@@ -237,8 +277,10 @@ function populateBacklogStrip(backlog) {
 
 /**
  * Populate Lifecycle & Rollback Strip.
+ * Strictly adheres to truthful nullability:
+ * Never renders VERIFIED without substantiating evidence artifact.
  */
-function populateLifecycleStrip(activeReg, promotion) {
+function populateLifecycleStrip(activeReg, promotion, replayStatus) {
   const flowCandidateEl = document.getElementById("flow-candidate");
   const flowGateEl = document.getElementById("flow-gate");
   const flowRestoredEl = document.getElementById("flow-restored");
@@ -260,11 +302,22 @@ function populateLifecycleStrip(activeReg, promotion) {
   } else if (promotion && promotion.status === "AVAILABLE" && promotion.data?.decision === "PROMOTE") {
     flowGateEl.textContent = "PROMOTED";
     flowGateEl.className = "flow-step pill-active";
+  } else {
+    flowGateEl.textContent = "UNAUDITED";
+    flowGateEl.className = "flow-step pill-unavailable";
   }
 
-  // Replay equality is verified via cryptographic provenance in active registry
-  replayEl.innerHTML = `REPLAY EQUALITY: TRUE`;
-  replayEl.className = "status-pill pill-pass";
+  // Truthful Replay Provenance:
+  // Render VERIFIED only if substantiated by artifact; otherwise explicit UNAVAILABLE
+  if (replayStatus && replayStatus.status === "VERIFIED") {
+    replayEl.innerHTML = "REPLAY EQUALITY: VERIFIED";
+    replayEl.className = "status-pill pill-pass";
+    replayEl.title = replayStatus.reason || `Substantiated by ${replayStatus.source}`;
+  } else {
+    replayEl.innerHTML = "REPLAY EQUALITY: UNAVAILABLE";
+    replayEl.className = "status-pill pill-unavailable";
+    replayEl.title = replayStatus?.reason || "Replay equality not substantiated by run.json or rollback execution artifacts";
+  }
 }
 
 /**

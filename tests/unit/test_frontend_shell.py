@@ -60,12 +60,14 @@ class TestFrontendShell(unittest.TestCase):
         self.assertIn("Dispatch Priority", html_content)
 
         # 4. Split Panels: Governance & Data Health
+        self.assertIn('id="gov-verdict-banner"', html_content)
+        self.assertIn('id="gov-verdict-pill"', html_content)
+        self.assertIn('id="gov-verdict-code"', html_content)
+        self.assertIn('id="gov-verdict-summary"', html_content)
         self.assertIn('id="gov-active"', html_content)
         self.assertIn('id="gov-candidate"', html_content)
         self.assertIn('id="gov-improvement"', html_content)
         self.assertIn('id="gov-holdout"', html_content)
-        self.assertIn('id="gov-decision"', html_content)
-        self.assertIn('id="gov-callout"', html_content)
 
         self.assertIn('id="health-schema"', html_content)
         self.assertIn('id="health-completeness"', html_content)
@@ -82,6 +84,22 @@ class TestFrontendShell(unittest.TestCase):
         self.assertIn('id="flow-gate"', html_content)
         self.assertIn('id="flow-restored"', html_content)
         self.assertIn('id="lifecycle-replay"', html_content)
+
+    def test_promotion_artifact_derived_counts(self):
+        """Verify load_json_artifact dynamically derives 71 vs 60 window missed weeks."""
+        res = load_json_artifact("runs/promotion/promotion_decision_v0002.json")
+        self.assertEqual(res.get("status"), "AVAILABLE")
+        data = res.get("data", {})
+        self.assertEqual(data.get("total_active_missed"), 71)
+        self.assertEqual(data.get("total_candidate_missed"), 60)
+
+    def test_replay_provenance_truthful_nullability(self):
+        """Verify replay provenance fails closed to UNAVAILABLE when proof is absent."""
+        from frontend.server import check_replay_provenance
+        # Baseline state without rollback report should be UNAVAILABLE
+        res = check_replay_provenance()
+        self.assertEqual(res["status"], "UNAVAILABLE")
+        self.assertIn("not substantiated", res["reason"])
 
     def test_load_json_artifact_existing(self):
         """Verify load_json_artifact loads real existing artifacts accurately."""

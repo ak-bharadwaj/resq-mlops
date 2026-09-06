@@ -93,6 +93,15 @@
           </div>
         </div>
         <div class="panel-content">
+          <div class="governance-verdict-banner" id="gov-verdict-banner">
+            <div class="verdict-tag-row">
+              <span class="status-pill pill-rejected" id="gov-verdict-pill">GATE: REJECTED</span>
+              <span class="verdict-reason-code" id="gov-verdict-code">REJECT_GROUPED_DISAGREEMENT</span>
+            </div>
+            <div class="verdict-summary" id="gov-verdict-summary">
+              Candidate v0002 was rejected: holdout fleet regression (18 vs 17 missed broken weeks). Active v0001 remains safely in production.
+            </div>
+          </div>
           <div class="info-row">
             <span class="info-label">Active Model:</span>
             <span class="info-value" id="gov-active">--</span>
@@ -110,11 +119,8 @@
             <span class="info-value" id="gov-holdout">--</span>
           </div>
           <div class="info-row">
-            <span class="info-label">Gate Decision:</span>
-            <span class="info-value" id="gov-decision">--</span>
-          </div>
-          <div class="callout-box" id="gov-callout">
-            Loading governance audit details...
+            <span class="info-label">Promotion Gate Rule:</span>
+            <span class="info-value" id="gov-rule" style="font-size: 11px; color: var(--text-dim);">≥10% Cost Diff & Holdout Agreement</span>
           </div>
         </div>
       </section>
@@ -193,9 +199,9 @@
         </div>
       </div>
       <div>
-        <div class="info-label" style="text-align: right; margin-bottom: 4px;">ATOMIC REPLAY VERIFICATION:</div>
+        <div class="info-label" style="text-align: right; margin-bottom: 4px;">DETERMINISTIC REPLAY PROVENANCE:</div>
         <div style="text-align: right;">
-          <span id="lifecycle-replay" class="status-pill pill-pass">REPLAY EQUALITY: TRUE</span>
+          <span id="lifecycle-replay" class="status-pill pill-unavailable">CHECKING...</span>
         </div>
       </div>
     </section>
