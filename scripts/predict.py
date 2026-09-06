@@ -67,8 +67,17 @@ def main() -> None:
         print(f"ERROR: Failed to resolve active model from registry: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    # Load master and compute eligibility status for operational reporting
+    from app.data.loader import get_gateway_eligibility, load_gateway_master
+    import datetime as dt
+
+    master_df = load_gateway_master(args.data)
+    week_date = dt.date.fromisoformat(args.week)
+    eligibility_df = get_gateway_eligibility(master_df, week_date)
+    eligible_count = int(eligibility_df["is_eligible"].sum())
+
     print(f"Data source: {args.data.resolve()}")
-    print(f"Active model: {active_version} | Week: {args.week}")
+    print(f"Active model: {active_version} | Week: {args.week} | Eligible gateways: {eligible_count} of {len(master_df)}")
 
     has_telemetry = (
         (args.data / "telemetry").exists()
@@ -107,11 +116,10 @@ def main() -> None:
     )
 
     # Write run record per v25 Section 6 and Section 14
-    import datetime as dt
     import hashlib
     pred_bytes = args.output.read_bytes()
     pred_file_hash = f"sha256:{hashlib.sha256(pred_bytes).hexdigest()}"
-    timestamp_utc = dt.datetime.now(dt.timezone.utc).isoformat()
+    timestamp_utc = f"{args.week}T00:00:00Z"
 
     write_run_record(
         run_path=args.run_record,

@@ -142,7 +142,7 @@ def main() -> None:
         submission_replay_hash = compute_v25_replay_hash(all_input_bytes, canonical_pred_bytes)
 
         active_ver = resolve_active_model_version()
-        timestamp_utc = dt.datetime.now(dt.timezone.utc).isoformat()
+        timestamp_utc = f"{SCORED_WEEKS[0].isoformat()}T00:00:00Z"
 
         args.run_record.parent.mkdir(parents=True, exist_ok=True)
         write_run_record(

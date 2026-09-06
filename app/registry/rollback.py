@@ -109,6 +109,10 @@ def validate_rollback_target(
     # 2. Validate model_config.json and schema.json
     try:
         config, schema_contract = load_active_artifact_config(target_dir)
+    except ModelArtifactError as exc:
+        raise RollbackTargetValidationError(
+            f"Artifact hash mismatch in {target_dir}: {exc}"
+        ) from exc
     except Exception as exc:
         raise RollbackTargetValidationError(
             f"Target artifact configuration/schema validation failed: {exc}"
