@@ -162,8 +162,13 @@ def load_predictions_artifact(selected_week: str | None = None) -> dict:
                 "file": "predictions.csv",
             }
 
-        target_week = selected_week if (selected_week and selected_week in weeks) else sorted_weeks[0]
-        filtered_rows = [r for r in rows if r.get("week_start") == target_week]
+        if selected_week:
+            target_week = selected_week
+            filtered_rows = [r for r in rows if r.get("week_start") == selected_week]
+        else:
+            target_week = sorted_weeks[0]
+            filtered_rows = [r for r in rows if r.get("week_start") == target_week]
+
         filtered_rows.sort(key=lambda r: int(r.get("rank", 999)))
 
         return {
@@ -189,8 +194,30 @@ def lookup_gateway_status(gateway_id: str, week: str | None = None) -> dict:
     if not cleaned_id:
         return {"status": "INVALID", "reason": "Empty gateway ID provided"}
 
-    # 1. Check predictions.csv
-    preds_res = load_predictions_artifact(week)
+    # 1. Load Backlog Report artifact
+    backlog_res = load_json_artifact("backlog_report.json")
+    if backlog_res.get("status") != "AVAILABLE":
+        return {
+            "status": "UNAVAILABLE",
+            "gateway_id": cleaned_id,
+            "reason": "backlog_report.json not found on disk. Run 'make run' to generate backlog intelligence.",
+        }
+
+    b_data = backlog_res.get("data", {})
+    report_week = b_data.get("week_start")
+
+    # 2. Week temporal consistency check
+    if week is not None and report_week and week != report_week:
+        return {
+            "status": "UNAVAILABLE",
+            "gateway_id": cleaned_id,
+            "reason": f"Requested week '{week}' does not match backlog artifact week '{report_week}'.",
+        }
+
+    target_week = week or report_week
+
+    # 3. Check predictions.csv (Top-15 dispatched)
+    preds_res = load_predictions_artifact(target_week)
     if preds_res.get("status") == "AVAILABLE":
         for p in preds_res.get("predictions", []):
             p_id = p.get("gateway_id", "").strip().replace(":", "").upper()
@@ -202,14 +229,42 @@ def lookup_gateway_status(gateway_id: str, week: str | None = None) -> dict:
                     "rank": int(p.get("rank", 0)),
                     "score": float(p.get("score", 0.0)),
                     "reason": p.get("reason", ""),
-                    "week_start": p.get("week_start", week or ""),
+                    "week_start": p.get("week_start", target_week or ""),
                     "operational_narrative": (
                         f"Gateway {cleaned_id} allocated technician visit (Rank {p.get('rank')}) "
                         f"in weekly capacity quota (€380 truck roll committed). Primary signal: {p.get('reason')}."
                     ),
                 }
 
-    # 2. Check gateway_master.csv to confirm fleet membership
+    # 4. Check deferred_gateways in backlog_report.json (Ranks 16+)
+    deferred_list = b_data.get("deferred_gateways", [])
+    for d in deferred_list:
+        d_id = d.get("gateway_id", "").strip().replace(":", "").upper()
+        if d_id == cleaned_id:
+            rank = d.get("rank")
+            score = float(d.get("score", 0.0))
+            reason = d.get("reason", "")
+            max_v = b_data.get("max_visits")
+            max_v_str = f"{max_v}-visit" if max_v is not None else "15-visit"
+            return {
+                "status": "AVAILABLE",
+                "gateway_id": cleaned_id,
+                "disposition": "DEFERRED",
+                "rank": rank,
+                "score": score,
+                "reason": reason,
+                "week_start": report_week or "",
+                "operational_narrative": (
+                    f"Gateway {cleaned_id} deferred to backlog (Rank {rank}, Score {score:.6f}). "
+                    f"Evaluated in single scoring pass; deferred strictly to protect the "
+                    f"{max_v_str} weekly capacity limit (€5,700 budget ceiling). Primary signal: {reason}."
+                ),
+                "exposure_method": b_data.get("exposure_method"),
+                "evidence_quality": b_data.get("evidence_quality"),
+                "max_visits": max_v,
+            }
+
+    # 5. Check gateway_master.csv to confirm whether it is a fleet member that was ineligible or unscored
     master_path = REPO_ROOT / "data" / "gateway_master.csv"
     in_master = False
     master_info = {}
@@ -226,41 +281,28 @@ def lookup_gateway_status(gateway_id: str, week: str | None = None) -> dict:
                             "site_type": row.get("site_type"),
                             "region": row.get("region"),
                             "hw_model": row.get("hw_model"),
+                            "installed_on": row.get("installed_on"),
+                            "decommissioned_on": row.get("decommissioned_on"),
                         }
                         break
         except Exception:
             pass
 
-    # 3. Load Backlog Report for context
-    backlog_res = load_json_artifact("backlog_report.json")
-
     if in_master:
-        if backlog_res.get("status") == "AVAILABLE":
-            b_data = backlog_res.get("data", {})
-            return {
-                "status": "AVAILABLE",
-                "gateway_id": cleaned_id,
-                "disposition": "DEFERRED",
-                "rank_tier": "Ranks 16+",
-                "week_start": b_data.get("week_start", week or ""),
-                "operational_narrative": (
-                    f"Gateway {cleaned_id} deferred to backlog. Evaluated in single scoring pass; "
-                    f"deferred strictly to protect the 15-visit weekly capacity limit (€5,700 budget ceiling). "
-                    f"Lower relative priority than rank 15. Tracked under heuristic risk proxy exposure."
-                ),
-                "exposure_method": b_data.get("exposure_method", "heuristic_proxy"),
-                "evidence_quality": b_data.get("evidence_quality", "baseline"),
-                "fleet_metadata": master_info,
-            }
-        else:
-            return {
-                "status": "UNAVAILABLE",
-                "gateway_id": cleaned_id,
-                "disposition": "DEFERRED",
-                "reason": "backlog_report.json not found on disk. Run 'make run' to generate backlog intelligence.",
-            }
+        # Fleet member exists in master, but was neither in predictions nor in deferred_gateways
+        return {
+            "status": "INELIGIBLE_OR_UNSCORED",
+            "gateway_id": cleaned_id,
+            "week_start": report_week or "",
+            "fleet_metadata": master_info,
+            "operational_narrative": (
+                f"Gateway {cleaned_id} exists in fleet master, but was NOT eligible or scored for week {report_week}. "
+                f"Gateways must be installed prior to cutoff, not decommissioned, and have valid reporting telemetry "
+                f"to be evaluated in the single scoring pass."
+            ),
+        }
 
-    # 4. Gateway not in master
+    # 6. Gateway not in master
     return {
         "status": "NOT_FOUND",
         "gateway_id": cleaned_id,

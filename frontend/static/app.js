@@ -695,11 +695,20 @@ function populateBacklogStrip(backlog, activeReg) {
       modalVerEl.textContent = data.model_version || (activeReg?.data?.production_version ? String(activeReg.data.production_version).toUpperCase() : "Active Model");
     }
     if (modalDispatchedSumEl) {
-      modalDispatchedSumEl.textContent = `${selected ?? '--'} / ${maxVisits ?? 15} visits allocated (100% capacity)`;
+      if (selected !== null && maxVisits !== null) {
+        const capPct = maxVisits > 0 ? ((selected / maxVisits) * 100).toFixed(0) : 100;
+        modalDispatchedSumEl.textContent = `${selected} / ${maxVisits} visits allocated (${capPct}% capacity)`;
+      } else {
+        renderUnavailable(modalDispatchedSumEl, "Capacity metrics undefined");
+      }
     }
     if (exposureBadge) {
-      exposureBadge.textContent = data.exposure_method || "heuristic_proxy";
-      exposureBadge.className = "status-pill pill-safe";
+      if (data.exposure_method) {
+        exposureBadge.textContent = data.exposure_method;
+        exposureBadge.className = "status-pill pill-safe";
+      } else {
+        renderUnavailable(exposureBadge, "exposure_method missing");
+      }
     }
   } else {
     renderUnavailable(defEl, backlog?.reason);
@@ -749,20 +758,33 @@ async function handleGatewayLookup(rawInput) {
           </div>
         `;
       } else if (data.disposition === "DEFERRED") {
+        const rankText = data.rank ? `RANK ${data.rank}` : "RANKS 16+";
+        const scoreText = (data.score !== undefined && data.score !== null) ? Number(data.score).toFixed(6) : "UNAVAILABLE";
+        const maxVText = (data.max_visits !== undefined && data.max_visits !== null) ? `${data.max_visits} visits/week (€5,700 ceiling)` : "UNAVAILABLE";
+        const expText = data.exposure_method || "UNAVAILABLE";
         resultBox.className = "lookup-result-box lookup-deferred-card";
         resultBox.innerHTML = `
           <div class="lookup-header-row">
             <span class="lookup-gw-id">${data.gateway_id}</span>
-            <span class="status-pill pill-rejected">DEFERRED (RANKS 16+)</span>
+            <span class="status-pill pill-rejected">DEFERRED (${rankText})</span>
           </div>
           <div class="lookup-narrative">${escapeHtml(data.operational_narrative)}</div>
           <div class="lookup-metrics-grid">
-            <div><span class="info-label">Disposition:</span> <span class="info-value">Deferred Backlog</span></div>
-            <div><span class="info-label">Capacity Limit:</span> <span class="info-value">15 visits/week (€5,700 ceiling)</span></div>
-            <div><span class="info-label">Risk Category:</span> <span class="info-value">${escapeHtml(data.exposure_method || "heuristic_proxy")}</span></div>
+            <div><span class="info-label">Model Score:</span> <span class="info-value" style="font-family: var(--font-mono);">${scoreText}</span></div>
+            <div><span class="info-label">Capacity Ceiling:</span> <span class="info-value">${maxVText}</span></div>
+            <div><span class="info-label">Risk Category:</span> <span class="info-value">${escapeHtml(expText)}</span></div>
           </div>
         `;
       }
+    } else if (data.status === "INELIGIBLE_OR_UNSCORED") {
+      resultBox.className = "lookup-result-box lookup-notfound-card";
+      resultBox.innerHTML = `
+        <div class="lookup-header-row">
+          <span class="lookup-gw-id">${cleanedId}</span>
+          <span class="status-pill pill-unavailable">INELIGIBLE / UNSCORED</span>
+        </div>
+        <div class="lookup-narrative">${escapeHtml(data.operational_narrative || "Gateway is a fleet member, but was either ineligible on this evaluation week or had no telemetry to score.")}</div>
+      `;
     } else if (data.status === "NOT_FOUND") {
       resultBox.className = "lookup-result-box lookup-notfound-card";
       resultBox.innerHTML = `

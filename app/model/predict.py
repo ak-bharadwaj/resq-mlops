@@ -307,6 +307,15 @@ def predict_week(
     deferred_count = len(backlog_records)
     deferred_high_risk = sum(1 for r in backlog_records if r["score"] > 0.0)
     deferred_proxy_score = sum(r["score"] for r in backlog_records)
+    deferred_gateways = [
+        {
+            "rank": rank,
+            "gateway_id": rec["gateway_id"],
+            "score": round(float(rec["score"]), 6),
+            "reason": rec["reason"],
+        }
+        for rank, rec in enumerate(backlog_records, visits_per_week + 1)
+    ]
 
     backlog_report = {
         "week_start": monday.isoformat(),
@@ -318,6 +327,7 @@ def predict_week(
         "exposure_method": "heuristic_proxy",
         "evidence_quality": "baseline",
         "model_version": active_version,
+        "deferred_gateways": deferred_gateways,
     }
 
     # 10. Replay Hash Construction per Frozen v25 Contract
