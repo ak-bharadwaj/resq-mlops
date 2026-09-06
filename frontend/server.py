@@ -37,18 +37,16 @@ def load_json_artifact(relative_path: str) -> dict:
         if isinstance(content, dict):
             # Dynamically derive aggregate window counts if window_results is present
             if "window_results" in content and isinstance(content["window_results"], dict):
-                total_active = sum(
-                    int(w.get("active_missed_broken_weeks", 0))
-                    for w in content["window_results"].values()
-                    if isinstance(w, dict) and "active_missed_broken_weeks" in w
-                )
-                total_cand = sum(
-                    int(w.get("candidate_missed_broken_weeks", 0))
-                    for w in content["window_results"].values()
-                    if isinstance(w, dict) and "candidate_missed_broken_weeks" in w
-                )
-                content["total_active_missed"] = total_active
-                content["total_candidate_missed"] = total_cand
+                windows = [w for w in content["window_results"].values() if isinstance(w, dict)]
+                if windows and all(
+                    "active_missed_broken_weeks" in w and "candidate_missed_broken_weeks" in w
+                    for w in windows
+                ):
+                    content["total_active_missed"] = sum(int(w["active_missed_broken_weeks"]) for w in windows)
+                    content["total_candidate_missed"] = sum(int(w["candidate_missed_broken_weeks"]) for w in windows)
+                else:
+                    content["total_active_missed"] = None
+                    content["total_candidate_missed"] = None
 
             return {"status": "AVAILABLE", "data": content, "file": relative_path}
         return {"status": "AVAILABLE", "data": {"raw": content}, "file": relative_path}

@@ -93,6 +93,28 @@ class TestFrontendShell(unittest.TestCase):
         self.assertEqual(data.get("total_active_missed"), 71)
         self.assertEqual(data.get("total_candidate_missed"), 60)
 
+    def test_promotion_artifact_missing_window_counts_no_zero_fallback(self):
+        """Verify load_json_artifact sets totals to None rather than 0 when window counts are incomplete."""
+        fixture_data = {
+            "window_results": {
+                "window_1": {"active_missed_broken_weeks": 10},  # candidate_missed_broken_weeks missing
+                "window_2": {"candidate_missed_broken_weeks": 5}  # active_missed_broken_weeks missing
+            }
+        }
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, dir=self.repo_root) as tf:
+            json.dump(fixture_data, tf)
+            temp_path = pathlib.Path(tf.name)
+
+        try:
+            rel_path = str(temp_path.relative_to(self.repo_root))
+            res = load_json_artifact(rel_path)
+            self.assertEqual(res.get("status"), "AVAILABLE")
+            self.assertIsNone(res["data"]["total_active_missed"])
+            self.assertIsNone(res["data"]["total_candidate_missed"])
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
     def test_replay_provenance_truthful_nullability(self):
         """Verify replay provenance fails closed to UNAVAILABLE when proof is absent."""
         from frontend.server import check_replay_provenance

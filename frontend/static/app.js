@@ -73,44 +73,39 @@ function populateSummary(summary) {
 
   // 1. Header Active Model Badge
   const activeBadgeEl = document.getElementById("active-model-badge");
-  if (activeReg && activeReg.status === "AVAILABLE" && activeReg.data) {
-    const activeVer = activeReg.data.production_version || "v0001";
-    activeBadgeEl.textContent = activeVer.toUpperCase();
+  if (activeReg?.status === "AVAILABLE" && activeReg.data?.production_version) {
+    activeBadgeEl.textContent = String(activeReg.data.production_version).toUpperCase();
     activeBadgeEl.className = "status-pill pill-active";
   } else {
-    renderUnavailable(activeBadgeEl, activeReg?.reason);
+    renderUnavailable(activeBadgeEl, activeReg?.reason || "Active production_version unavailable");
   }
 
   // 2. KPI: Fleet Eligibility
   const kpiFleetEl = document.getElementById("kpi-fleet");
-  if (schemaHealth && schemaHealth.status === "AVAILABLE" && schemaHealth.data) {
-    const count = schemaHealth.data.eligible_gateways_count;
-    kpiFleetEl.textContent = count !== undefined ? `${count} eligible` : "--";
-  } else if (backlog && backlog.status === "AVAILABLE" && backlog.data) {
-    const count = (backlog.data.selected_count || 0) + (backlog.data.deferred_count || 0);
-    kpiFleetEl.textContent = `${count} eligible`;
+  if (schemaHealth?.status === "AVAILABLE" && schemaHealth.data?.eligible_gateways_count !== undefined && schemaHealth.data?.eligible_gateways_count !== null) {
+    kpiFleetEl.textContent = `${schemaHealth.data.eligible_gateways_count} eligible`;
+  } else if (backlog?.status === "AVAILABLE" && backlog.data?.selected_count !== undefined && backlog.data?.deferred_count !== undefined) {
+    kpiFleetEl.textContent = `${Number(backlog.data.selected_count) + Number(backlog.data.deferred_count)} eligible`;
   } else {
-    renderUnavailable(kpiFleetEl, schemaHealth?.reason);
+    renderUnavailable(kpiFleetEl, schemaHealth?.reason || backlog?.reason || "Fleet eligibility unavailable");
   }
 
   // 3. KPI: Weekly Capacity
   const kpiCapacityEl = document.getElementById("kpi-capacity");
-  if (backlog && backlog.status === "AVAILABLE" && backlog.data) {
-    const selected = backlog.data.selected_count ?? 15;
-    const maxVisits = backlog.data.max_visits ?? 15;
-    kpiCapacityEl.textContent = `${selected} / ${maxVisits} allocated`;
+  if (backlog?.status === "AVAILABLE" && backlog.data?.selected_count !== undefined && backlog.data?.max_visits !== undefined) {
+    kpiCapacityEl.textContent = `${backlog.data.selected_count} / ${backlog.data.max_visits} allocated`;
   } else {
-    renderUnavailable(kpiCapacityEl, backlog?.reason);
+    renderUnavailable(kpiCapacityEl, backlog?.reason || "Capacity metrics unavailable");
   }
 
   // 4. KPI: Data Health
   const kpiHealthEl = document.getElementById("kpi-health");
-  if (schemaHealth && schemaHealth.status === "AVAILABLE" && schemaHealth.data) {
-    const statusStr = schemaHealth.data.status || "PASS";
+  if (schemaHealth?.status === "AVAILABLE" && schemaHealth.data?.status) {
+    const statusStr = String(schemaHealth.data.status).toUpperCase();
     const pillClass = statusStr === "PASS" ? "pill-pass" : "pill-rejected";
     kpiHealthEl.innerHTML = `<span class="status-pill ${pillClass}">${statusStr}</span>`;
   } else {
-    renderUnavailable(kpiHealthEl, schemaHealth?.reason);
+    renderUnavailable(kpiHealthEl, schemaHealth?.reason || "Data health status unavailable");
   }
 
   // 5. Model Governance Panel
@@ -128,6 +123,7 @@ function populateSummary(summary) {
 
 /**
  * Populate Model Governance section with prominent verdict banner.
+ * Fails closed to UNAVAILABLE whenever authoritative data is absent.
  */
 function populateGovernancePanel(promotion, activeReg) {
   const govActiveEl = document.getElementById("gov-active");
@@ -140,68 +136,89 @@ function populateGovernancePanel(promotion, activeReg) {
   const verdictCodeEl = document.getElementById("gov-verdict-code");
   const verdictSummaryEl = document.getElementById("gov-verdict-summary");
 
-  const activeVer = (activeReg && activeReg.status === "AVAILABLE" && activeReg.data)
-    ? activeReg.data.production_version
-    : "v0001";
-  govActiveEl.innerHTML = `<span>${activeVer}</span> <span style="color: var(--text-dim); font-size: 11px;">(Baseline 3-Sigma)</span>`;
+  const hasActive = activeReg?.status === "AVAILABLE" && activeReg.data?.production_version;
+  const activeVer = hasActive ? activeReg.data.production_version : null;
+  if (activeVer) {
+    govActiveEl.innerHTML = `<span>${activeVer}</span> <span style="color: var(--text-dim); font-size: 11px;">(Baseline 3-Sigma)</span>`;
+  } else {
+    renderUnavailable(govActiveEl, activeReg?.reason || "Active model unavailable");
+  }
 
-  if (promotion && promotion.status === "AVAILABLE" && promotion.data) {
+  const hasPromotion = promotion?.status === "AVAILABLE" && promotion.data;
+  if (hasPromotion) {
     const data = promotion.data;
-    govCandidateEl.innerHTML = `<span>${data.candidate_version || "v0002"}</span> <span style="color: var(--text-dim); font-size: 11px;">(Weighted Multi-Signal)</span>`;
-
-    const decision = data.decision || "REJECT";
-    const decisionCode = data.reason_code || "REJECT_GROUPED_DISAGREEMENT";
-    const isRejected = decision === "REJECT";
-
-    if (bannerEl) bannerEl.className = isRejected ? "governance-verdict-banner" : "governance-verdict-banner success";
-    if (verdictPillEl) {
-      verdictPillEl.className = isRejected ? "status-pill pill-rejected" : "status-pill pill-active";
-      verdictPillEl.textContent = `GATE: ${decision}`;
+    const candVer = data.candidate_version;
+    if (candVer) {
+      govCandidateEl.innerHTML = `<span>${candVer}</span> <span style="color: var(--text-dim); font-size: 11px;">(Weighted Multi-Signal)</span>`;
+    } else {
+      renderUnavailable(govCandidateEl, "candidate_version missing in promotion artifact");
     }
-    if (verdictCodeEl) verdictCodeEl.textContent = decisionCode;
 
-    // Dynamically derive missed broken weeks from promotion artifact (window_results)
+    const decision = data.decision;
+    const decisionCode = data.reason_code;
+    if (decision && decisionCode) {
+      const isRejected = decision === "REJECT";
+      if (bannerEl) bannerEl.className = isRejected ? "governance-verdict-banner" : "governance-verdict-banner success";
+      if (verdictPillEl) {
+        verdictPillEl.className = isRejected ? "status-pill pill-rejected" : "status-pill pill-active";
+        verdictPillEl.textContent = `GATE: ${decision}`;
+      }
+      if (verdictCodeEl) verdictCodeEl.textContent = decisionCode;
+    } else {
+      if (bannerEl) bannerEl.className = "governance-verdict-banner unavailable";
+      if (verdictPillEl) {
+        verdictPillEl.className = "status-pill pill-unavailable";
+        verdictPillEl.textContent = "GATE: UNAVAILABLE";
+      }
+      if (verdictCodeEl) verdictCodeEl.textContent = "DECISION_UNDEFINED";
+    }
+
+    // Temporal improvement derivation
     const imp = data.aggregate_improvement_percent;
-    const impStr = (imp !== undefined && imp !== null) ? `+${imp.toFixed(2)}%` : "--";
+    if (imp !== undefined && imp !== null) {
+      const impStr = `+${Number(imp).toFixed(2)}%`;
 
-    let activeMissed = data.total_active_missed;
-    let candMissed = data.total_candidate_missed;
-    if ((activeMissed === undefined || candMissed === undefined) && data.window_results) {
-      activeMissed = 0;
-      candMissed = 0;
-      Object.values(data.window_results).forEach((w) => {
-        if (w && typeof w === "object") {
-          activeMissed += Number(w.active_missed_broken_weeks || 0);
-          candMissed += Number(w.candidate_missed_broken_weeks || 0);
+      let activeMissed = data.total_active_missed;
+      let candMissed = data.total_candidate_missed;
+      if ((activeMissed === undefined || candMissed === undefined) && data.window_results && typeof data.window_results === "object") {
+        const windows = Object.values(data.window_results);
+        if (windows.length > 0 && windows.every((w) => w && w.active_missed_broken_weeks !== undefined && w.candidate_missed_broken_weeks !== undefined)) {
+          activeMissed = windows.reduce((sum, w) => sum + Number(w.active_missed_broken_weeks), 0);
+          candMissed = windows.reduce((sum, w) => sum + Number(w.candidate_missed_broken_weeks), 0);
         }
-      });
+      }
+
+      const countsLabel = (activeMissed !== undefined && candMissed !== undefined)
+        ? `(${candMissed} vs ${activeMissed} missed weeks)`
+        : "";
+
+      govImprovementEl.innerHTML = `<span style="color: var(--success); font-family: var(--font-mono);">${impStr}</span> ${countsLabel ? `<span style="color: var(--text-dim); font-size: 11px;">${countsLabel}</span>` : ""}`;
+    } else {
+      renderUnavailable(govImprovementEl, "aggregate_improvement_percent missing");
     }
 
-    const countsLabel = (activeMissed !== undefined && candMissed !== undefined)
-      ? `(${candMissed} vs ${activeMissed} missed weeks)`
-      : "";
-
-    govImprovementEl.innerHTML = `<span style="color: var(--success); font-family: var(--font-mono);">${impStr}</span> ${countsLabel ? `<span style="color: var(--text-dim); font-size: 11px;">${countsLabel}</span>` : ""}`;
-
+    // Holdout evaluation derivation
     const holdout = data.grouped_holdout_result;
-    if (holdout) {
+    if (holdout && holdout.candidate_missed_broken_weeks !== undefined && holdout.active_missed_broken_weeks !== undefined) {
       const holdoutActive = holdout.active_missed_broken_weeks;
       const holdoutCand = holdout.candidate_missed_broken_weeks;
-      govHoldoutEl.innerHTML = `<span style="color: var(--danger); font-family: var(--font-mono);">${holdoutCand} vs ${holdoutActive} missed</span> <span style="color: var(--text-dim); font-size: 11px;">(Holdout Regression)</span>`;
+      const diff = holdoutCand - holdoutActive;
+      const regLabel = diff > 0 ? "Holdout Regression" : (diff < 0 ? "Holdout Improvement" : "Equal");
+      govHoldoutEl.innerHTML = `<span style="color: ${diff > 0 ? 'var(--danger)' : 'var(--success)'}; font-family: var(--font-mono);">${holdoutCand} vs ${holdoutActive} missed</span> <span style="color: var(--text-dim); font-size: 11px;">(${regLabel})</span>`;
 
       if (verdictSummaryEl) {
-        verdictSummaryEl.textContent = `Candidate ${data.candidate_version || "v0002"} was rejected: holdout fleet regression (${holdoutCand} vs ${holdoutActive} missed broken weeks). Active ${activeVer} remains safely in production.`;
+        verdictSummaryEl.textContent = `Candidate ${candVer || "candidate"} was rejected: holdout fleet regression (${holdoutCand} vs ${holdoutActive} missed broken weeks). Active ${activeVer || "production model"} remains safely in production.`;
       }
     } else {
-      govHoldoutEl.textContent = "--";
+      renderUnavailable(govHoldoutEl, "Holdout results unavailable");
       if (verdictSummaryEl) {
-        verdictSummaryEl.textContent = data.explanation || `Verdict: ${decision} (${decisionCode})`;
+        verdictSummaryEl.textContent = data.explanation || `Verdict: ${decision || 'UNAVAILABLE'}`;
       }
     }
   } else {
-    govCandidateEl.innerHTML = `<span>v0002</span> <span style="color: var(--text-dim); font-size: 11px;">(Candidate)</span>`;
-    renderUnavailable(govImprovementEl, promotion?.reason);
-    renderUnavailable(govHoldoutEl, promotion?.reason);
+    renderUnavailable(govCandidateEl, promotion?.reason || "Candidate version unavailable");
+    renderUnavailable(govImprovementEl, promotion?.reason || "Temporal improvement unavailable");
+    renderUnavailable(govHoldoutEl, promotion?.reason || "Holdout results unavailable");
 
     if (bannerEl) bannerEl.className = "governance-verdict-banner unavailable";
     if (verdictPillEl) {
@@ -217,6 +234,7 @@ function populateGovernancePanel(promotion, activeReg) {
 
 /**
  * Populate Data Health & Completeness section.
+ * Fails closed to UNAVAILABLE whenever authoritative data is absent.
  */
 function populateHealthPanel(schemaHealth) {
   const schemaEl = document.getElementById("health-schema");
@@ -225,24 +243,43 @@ function populateHealthPanel(schemaHealth) {
   const reportingEl = document.getElementById("health-reporting");
   const invariantsEl = document.getElementById("health-invariants");
 
-  if (schemaHealth && schemaHealth.status === "AVAILABLE" && schemaHealth.data) {
+  if (schemaHealth?.status === "AVAILABLE" && schemaHealth.data) {
     const data = schemaHealth.data;
 
-    schemaEl.innerHTML = `<span class="status-pill pill-pass">${data.status || 'PASS'}</span>`;
+    if (data.status) {
+      const statusStr = String(data.status).toUpperCase();
+      schemaEl.innerHTML = `<span class="status-pill ${statusStr === 'PASS' ? 'pill-pass' : 'pill-rejected'}">${statusStr}</span>`;
+    } else {
+      renderUnavailable(schemaEl, "schema status undefined");
+    }
 
-    const isSafe = data.source_completeness_safe === true;
-    compEl.innerHTML = `<span class="status-pill ${isSafe ? 'pill-safe' : 'pill-rejected'}">${isSafe ? 'SAFE' : 'BLOCKED'}</span>`;
+    if (data.source_completeness_safe !== undefined && data.source_completeness_safe !== null) {
+      const isSafe = data.source_completeness_safe === true;
+      compEl.innerHTML = `<span class="status-pill ${isSafe ? 'pill-safe' : 'pill-rejected'}">${isSafe ? 'SAFE' : 'BLOCKED'}</span>`;
+    } else {
+      renderUnavailable(compEl, "source_completeness_safe undefined");
+    }
 
-    const absenceRate = data.fleet_absence_rate !== undefined
-      ? `${(data.fleet_absence_rate * 100).toFixed(2)}%`
-      : "--";
-    absenceEl.innerHTML = `<span style="font-family: var(--font-mono);">${absenceRate}</span> <span style="color: var(--text-dim); font-size: 11px;">(<50% threshold)</span>`;
+    if (data.fleet_absence_rate !== undefined && data.fleet_absence_rate !== null) {
+      const absenceRate = `${(Number(data.fleet_absence_rate) * 100).toFixed(2)}%`;
+      absenceEl.innerHTML = `<span style="font-family: var(--font-mono);">${absenceRate}</span> <span style="color: var(--text-dim); font-size: 11px;">(<50% threshold)</span>`;
+    } else {
+      renderUnavailable(absenceEl, "fleet_absence_rate undefined");
+    }
 
-    const uniqueRep = data.unique_reporting_gateways;
-    const eligible = data.eligible_gateways_count;
-    reportingEl.innerHTML = `<span style="font-family: var(--font-mono);">${uniqueRep} / ${eligible}</span> gateways`;
+    if (data.unique_reporting_gateways !== undefined && data.eligible_gateways_count !== undefined) {
+      reportingEl.innerHTML = `<span style="font-family: var(--font-mono);">${data.unique_reporting_gateways} / ${data.eligible_gateways_count}</span> gateways`;
+    } else {
+      renderUnavailable(reportingEl, "gateway reporting counts undefined");
+    }
 
-    invariantsEl.innerHTML = `<span class="status-pill pill-pass">GUARDRAILS ACTIVE</span>`;
+    if (data.schema_validation_passed === true && data.source_completeness_safe === true) {
+      invariantsEl.innerHTML = `<span class="status-pill pill-pass">GUARDRAILS ACTIVE</span>`;
+    } else if (data.schema_validation_passed !== undefined) {
+      invariantsEl.innerHTML = `<span class="status-pill pill-rejected">GUARDRAILS TRIPPED</span>`;
+    } else {
+      renderUnavailable(invariantsEl, "guardrail validation status undefined");
+    }
   } else {
     renderUnavailable(schemaEl, schemaHealth?.reason);
     renderUnavailable(compEl, schemaHealth?.reason);
@@ -254,20 +291,32 @@ function populateHealthPanel(schemaHealth) {
 
 /**
  * Populate Backlog summary strip.
+ * Fails closed to UNAVAILABLE whenever counts are absent.
  */
 function populateBacklogStrip(backlog) {
   const defEl = document.getElementById("backlog-deferred");
   const highRiskEl = document.getElementById("backlog-high-risk");
   const proxyEl = document.getElementById("backlog-proxy-hours");
 
-  if (backlog && backlog.status === "AVAILABLE" && backlog.data) {
+  if (backlog?.status === "AVAILABLE" && backlog.data) {
     const data = backlog.data;
-    defEl.textContent = `${data.deferred_count || 0}`;
-    highRiskEl.textContent = `${data.deferred_high_risk_count || 0}`;
-    const proxyScore = data.deferred_risk_proxy_score;
-    proxyEl.textContent = proxyScore !== undefined
-      ? Number(proxyScore).toLocaleString("en-US", { maximumFractionDigits: 0 })
-      : "--";
+    if (data.deferred_count !== undefined && data.deferred_count !== null) {
+      defEl.textContent = String(data.deferred_count);
+    } else {
+      renderUnavailable(defEl, "deferred_count undefined");
+    }
+
+    if (data.deferred_high_risk_count !== undefined && data.deferred_high_risk_count !== null) {
+      highRiskEl.textContent = String(data.deferred_high_risk_count);
+    } else {
+      renderUnavailable(highRiskEl, "deferred_high_risk_count undefined");
+    }
+
+    if (data.deferred_risk_proxy_score !== undefined && data.deferred_risk_proxy_score !== null) {
+      proxyEl.textContent = Number(data.deferred_risk_proxy_score).toLocaleString("en-US", { maximumFractionDigits: 0 });
+    } else {
+      renderUnavailable(proxyEl, "deferred_risk_proxy_score undefined");
+    }
   } else {
     renderUnavailable(defEl, backlog?.reason);
     renderUnavailable(highRiskEl, backlog?.reason);
@@ -278,7 +327,7 @@ function populateBacklogStrip(backlog) {
 /**
  * Populate Lifecycle & Rollback Strip.
  * Strictly adheres to truthful nullability:
- * Never renders VERIFIED without substantiating evidence artifact.
+ * Never renders candidate/restored versions or VERIFIED without authoritative artifact evidence.
  */
 function populateLifecycleStrip(activeReg, promotion, replayStatus) {
   const flowCandidateEl = document.getElementById("flow-candidate");
@@ -286,29 +335,37 @@ function populateLifecycleStrip(activeReg, promotion, replayStatus) {
   const flowRestoredEl = document.getElementById("flow-restored");
   const replayEl = document.getElementById("lifecycle-replay");
 
-  const candVer = (promotion && promotion.status === "AVAILABLE" && promotion.data?.candidate_version)
-    ? promotion.data.candidate_version
-    : "v0002";
-  const activeVer = (activeReg && activeReg.status === "AVAILABLE" && activeReg.data?.production_version)
-    ? activeReg.data.production_version
-    : "v0001";
+  // Candidate step: render version or UNAVAILABLE
+  if (promotion?.status === "AVAILABLE" && promotion.data?.candidate_version) {
+    flowCandidateEl.textContent = `${promotion.data.candidate_version} (Candidate)`;
+    flowCandidateEl.className = "flow-step";
+  } else {
+    flowCandidateEl.innerHTML = `<span class="status-pill pill-unavailable">UNAVAILABLE</span>`;
+    flowCandidateEl.className = "flow-step";
+  }
 
-  flowCandidateEl.textContent = `${candVer} (Candidate)`;
-  flowRestoredEl.textContent = `${activeVer} RESTORED`;
+  // Active restored step: render version or UNAVAILABLE
+  if (activeReg?.status === "AVAILABLE" && activeReg.data?.production_version) {
+    flowRestoredEl.textContent = `${activeReg.data.production_version} RESTORED`;
+    flowRestoredEl.className = "flow-step pill-active";
+  } else {
+    flowRestoredEl.innerHTML = `<span class="status-pill pill-unavailable">UNAVAILABLE</span>`;
+    flowRestoredEl.className = "flow-step";
+  }
 
-  if (promotion && promotion.status === "AVAILABLE" && promotion.data?.decision === "REJECT") {
+  // Gate step: render decision or UNAUDITED
+  if (promotion?.status === "AVAILABLE" && promotion.data?.decision === "REJECT") {
     flowGateEl.textContent = "REJECTED";
     flowGateEl.className = "flow-step pill-rejected";
-  } else if (promotion && promotion.status === "AVAILABLE" && promotion.data?.decision === "PROMOTE") {
+  } else if (promotion?.status === "AVAILABLE" && promotion.data?.decision === "PROMOTE") {
     flowGateEl.textContent = "PROMOTED";
     flowGateEl.className = "flow-step pill-active";
   } else {
-    flowGateEl.textContent = "UNAUDITED";
-    flowGateEl.className = "flow-step pill-unavailable";
+    flowGateEl.innerHTML = `<span class="status-pill pill-unavailable">UNAUDITED</span>`;
+    flowGateEl.className = "flow-step";
   }
 
-  // Truthful Replay Provenance:
-  // Render VERIFIED only if substantiated by artifact; otherwise explicit UNAVAILABLE
+  // Replay equality: render VERIFIED only if substantiated by artifact; otherwise explicit UNAVAILABLE
   if (replayStatus && replayStatus.status === "VERIFIED") {
     replayEl.innerHTML = "REPLAY EQUALITY: VERIFIED";
     replayEl.className = "status-pill pill-pass";
