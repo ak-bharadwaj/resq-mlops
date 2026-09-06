@@ -29,7 +29,7 @@ RAW DATA (./data)
   │
   └── ROLLBACK DEMO (scripts/rollback.py)
         ├── Validate target artifact integrity
-        ├── Atomic pointer switch (v0002 -> v0001)
+        ├── Atomic pointer switch (v_promotable -> v0001)
         └── Verify identical bitwise prediction output
 ```
 
@@ -48,6 +48,14 @@ RAW DATA (./data)
 | Gate | `REJECT_COVERAGE` | Common population coverage below 90% |
 | Registry | `PROMOTED` | Active version updated atomically |
 | Registry | `ROLLED_BACK` | Prior version restored and validated |
+
+## Role of `v_promotable` in Lifecycle Rehearsal
+
+To maintain production integrity, experimental candidate `v0002` was rejected by the promotion gate (`REJECT_GROUPED_DISAGREEMENT`) and was never deployed to production. To allow operators to rehearse and audit the rollback lifecycle without compromising governance integrity, the system includes `v_promotable` (`models/v_promotable`).
+
+- **Artifact Properties**: Shares the identical architecture and feature weights as `v0002` ($w_{\text{anomaly}} = 0.70$, $w_{\text{silence}} = 0.30$).
+- **Evidence Binding**: Certified by a committed evaluation report clearing all promotion gates (aggregate cost gain: 15.49%, holdout missed weeks: 17 → 14).
+- **Rollback Contract**: Used in `scripts/rollback.py` (`make rollback`) and `tests/unit/test_rollback.py` to demonstrate pre-validation, atomic pointer switch, and bit-for-bit replay equality without relying on unproven candidates.
 
 ## 4-Hour EDA & Feature-Freeze Discipline (v25 Contract)
 

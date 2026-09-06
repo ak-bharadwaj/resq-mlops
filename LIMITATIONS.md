@@ -62,5 +62,13 @@ If granted two additional weeks of engineering and operational development time,
    - **Reliability Benefit**: Flags network-wide cellular carrier degradation or firmware regressions before they manifest as catastrophic gateway outages.
 
 4. **Technician Review Closure for Right-Censored Work Orders**:
-   - Establish an active feedback loop with regional operations to verify terminal outcomes for the 14 late-January/February work orders currently classified as `UNKNOWN_RIGHT_CENSORED`.
-   - **Evaluation Benefit**: Expands the verified evaluation cohort beyond the current 137 confirmed broken gateway-weeks, sharpening promotion gate statistical power.
+    - Establish an active feedback loop with regional operations to verify terminal outcomes for the 14 late-January/February work orders currently classified as `UNKNOWN_RIGHT_CENSORED`.
+    - **Evaluation Benefit**: Expands the verified evaluation cohort beyond the current 137 confirmed broken gateway-weeks, sharpening promotion gate statistical power.
+
+---
+
+## 6. Model Rollback Demonstration via Committed Fixture (`v_promotable`)
+
+- **Limitation**: In live production, candidate `v0002` failed the promotion gate due to holdout disagreement (`REJECT_GROUPED_DISAGREEMENT`) and was never deployed as active. Consequently, a production rollback from `v0002` cannot occur because production remained securely anchored on baseline `v0001`.
+- **Operational Handling**: To verify that the atomic rollback machinery (`scripts/rollback.py`, `make rollback`) functions correctly under production failure conditions, the repository provides a committed, deterministic model package fixture: `v_promotable` (`models/v_promotable`). `v_promotable` shares the architecture of `v0002` but includes committed evaluation evidence that clears the promotion criteria (15.49% development gain and holdout directional agreement: 17 → 14 missed weeks).
+- **Consequence**: The rollback rehearsal demonstrates atomic validation, registry pointer mutation, and bit-for-bit replay recovery using `v_promotable` without requiring artificial relaxation of production governance rules or false deployment of `v0002`.
