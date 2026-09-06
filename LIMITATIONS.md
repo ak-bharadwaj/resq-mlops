@@ -40,7 +40,7 @@ In strict accordance with Challenge Part 1 deliverables and ARCHITECTURE_v25_FRE
 
 ## 4. Structural Schema Validation vs Continuous Concept Drift
 
-- **Limitation**: Structural schema correctness (column presence, strict dtypes, timestamp granularity, and fleet-wide absence rate) is enforced at the ingestion boundary (`app/data/schema.py` and `app/data/quality.py`). However, continuous monitoring (`scripts/check_drift.py`) remains an unbuilt future phase, and the system does not track multivariate statistical concept drift (e.g. Population Stability Index or Wasserstein distance across all 57 raw telemetry signals).
+- **Limitation**: Structural schema correctness (column presence, strict dtypes, timestamp granularity, and fleet-wide absence rate) is monitored by `scripts/check_drift.py` (`make drift`) and enforced at the ingestion boundary (`app/data/schema.py` and `app/data/quality.py`). However, the system does not track continuous multivariate statistical concept drift (e.g. Population Stability Index or Wasserstein distance across all 57 raw telemetry signals).
 - **Operational Consequence**: Subtle fleet-wide environmental degradation or gradual firmware distribution shifts that do not break schema constraints will not trigger a drift alert.
 
 ---
@@ -57,8 +57,8 @@ If granted two additional weeks of engineering and operational development time,
    - Cross-reference the 12 zero-telemetry gateways with mobile network operator (MNO) SIM registration logs and installation work orders.
    - **Operational Benefit**: Resolves whether these 12 units represent uncommissioned hardware, antenna orientation failures, or dead cellular modems, eliminating the 3.61% fleet blind spot.
 
-3. **Operational Drift Monitoring Pipeline (`scripts/check_drift.py`)**:
-   - Implement `scripts/check_drift.py` to compute Population Stability Index (PSI) and Kolmogorov-Smirnov statistics across key telemetry features (`snr_db`, `rssi_dbm`, `battery_voltage_v`).
+3. **Multivariate Statistical Concept Drift Monitoring**:
+   - Expand `scripts/check_drift.py` from structural schema monitoring to continuous Population Stability Index (PSI) and Kolmogorov-Smirnov statistics across key telemetry features (`snr_db`, `rssi_dbm`, `battery_voltage_v`).
    - **Reliability Benefit**: Flags network-wide cellular carrier degradation or firmware regressions before they manifest as catastrophic gateway outages.
 
 4. **Technician Review Closure for Right-Censored Work Orders**:

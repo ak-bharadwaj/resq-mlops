@@ -257,3 +257,35 @@ def test_load_active_schema_fails_closed_when_model_dir_missing(tmp_path: pathli
     with pytest.raises(SchemaValidationError, match="model artifact directory .* does not exist"):
         TelemetrySchemaContract.load_active_schema(models_dir=models_dir, registry_path=registry_path)
 
+
+def test_check_drift_cli_execution(tmp_path: pathlib.Path):
+    """Verify scripts/check_drift.py executes structural schema monitoring cleanly."""
+    import subprocess
+    import sys
+
+    data_dir = pathlib.Path("data")
+    if not data_dir.exists():
+        pytest.skip("data directory not available")
+
+    report_out = tmp_path / "drift_report.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            "scripts/check_drift.py",
+            "--data", str(data_dir),
+            "--output", str(report_out),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, f"check_drift failed: {res.stderr}"
+    assert "STRUCTURAL SCHEMA MONITORING" in res.stdout
+    assert "Structural Schema:      PASS" in res.stdout
+    assert report_out.exists()
+
+    report_data = json.loads(report_out.read_text(encoding="utf-8"))
+    assert report_data["status"] == "PASS"
+    assert report_data["schema_validation_passed"] is True
+    assert report_data["source_completeness_safe"] is True
+    assert report_data["rows_checked"] > 0
+

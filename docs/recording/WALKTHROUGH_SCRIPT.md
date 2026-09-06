@@ -90,7 +90,7 @@ Conforming strictly to Challenge Brief Part 1 Section 7 and ARCHITECTURE_v25_FRE
 - **Spoken Dialogue**:
   > *"Because our operational budget strictly caps technician visits at 15 per week, what happens to gateway rank 16 that is also showing signs of failure?
   > 
-  > We never drop high-risk gateways into the dark. All candidates ranked 16 and above are captured in `backlog_report.json`. Operations planners can see the exact deferred penalty exposure—for example, €4,800 in deferred risk across 8 unvisited units in week 1. 
+  > We never drop high-risk gateways into the dark. All candidates ranked 16 and above are captured in `backlog_report.json`. Operations planners can see the exact deferred risk exposure—for example, in week 1, 275 gateways are deferred, with 245 units exhibiting elevated risk scores totaling 1,523 proxy anomaly hours.
   > 
   > This gives dispatch managers the business justification to request emergency overtime or reallocate regional contractor capacity."*
 
