@@ -16,6 +16,7 @@ from app.model.predict import (
     InsufficientEligibleGatewaysError,
     ModelArtifactError,
     predict_week,
+    resolve_active_model_version,
     write_run_record,
 )
 
@@ -59,26 +60,15 @@ def main() -> None:
         print(f"ERROR: Specified data directory does not exist: {args.data}", file=sys.stderr)
         sys.exit(1)
 
-    # Load master and compute eligibility status
-    from app.data.loader import get_gateway_eligibility, load_gateway_master
-    import datetime as dt
-    import json
-
-    master_df = load_gateway_master(args.data)
-    week_date = dt.date.fromisoformat(args.week)
-    eligibility_df = get_gateway_eligibility(master_df, week_date)
-    eligible_count = int(eligibility_df["is_eligible"].sum())
-
     active_path = pathlib.Path("registry/active.json")
-    active_version = "v0001"
-    if active_path.exists():
-        try:
-            active_version = json.loads(active_path.read_text(encoding="utf-8")).get("production_version", "v0001")
-        except Exception:
-            pass
+    try:
+        active_version = resolve_active_model_version(active_path)
+    except Exception as exc:
+        print(f"ERROR: Failed to resolve active model from registry: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Data source: {args.data.resolve()}")
-    print(f"Week: {args.week} | Eligible gateways: {eligible_count} of {len(master_df)}")
+    print(f"Active model: {active_version} | Week: {args.week}")
 
     has_telemetry = (
         (args.data / "telemetry").exists()
@@ -117,9 +107,11 @@ def main() -> None:
     )
 
     # Write run record per v25 Section 6 and Section 14
+    import datetime as dt
     import hashlib
     pred_bytes = args.output.read_bytes()
     pred_file_hash = f"sha256:{hashlib.sha256(pred_bytes).hexdigest()}"
+    timestamp_utc = dt.datetime.now(dt.timezone.utc).isoformat()
 
     write_run_record(
         run_path=args.run_record,
@@ -130,6 +122,7 @@ def main() -> None:
         backlog_file=str(args.backlog_report),
         data_dir=str(args.data),
         week_start=result["week_start"],
+        execution_timestamp_utc=timestamp_utc,
     )
 
     print(f"Active model: {result['active_version']}")

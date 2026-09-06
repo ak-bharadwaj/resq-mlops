@@ -226,7 +226,10 @@ def promote_candidate(
 
     Safety:
     - Raises RuntimeError if decision.decision != 'PROMOTE'.
-    - Atomic write via temporary file replacement.
+    - Validates candidate and active version identity between decision and registry.
+    - Fails closed on unreadable or corrupt registry/active.json.
+    - Transactional: if writing to history.jsonl fails, executes compensating rollback
+      reverting registry/active.json to its prior state.
     """
     if decision.decision != "PROMOTE":
         raise RuntimeError(
@@ -234,16 +237,37 @@ def promote_candidate(
             f"({decision.reason_code}): {decision.explanation}"
         )
 
+    if decision.candidate_version != candidate_version:
+        raise ValueError(
+            f"Decision candidate_version '{decision.candidate_version}' does not match "
+            f"requested candidate_version '{candidate_version}'"
+        )
+
     if not registry_path.parent.exists():
         registry_path.parent.mkdir(parents=True, exist_ok=True)
 
     previous_version: Optional[str] = None
+    orig_active_bytes: Optional[bytes] = None
     if registry_path.exists():
         try:
-            curr_data = json.loads(registry_path.read_text(encoding="utf-8"))
-            previous_version = curr_data.get("production_version")
-        except Exception:
-            pass
+            orig_active_bytes = registry_path.read_bytes()
+            curr_data = json.loads(orig_active_bytes.decode("utf-8"))
+        except Exception as exc:
+            raise RuntimeError(
+                f"Active registry at '{registry_path}' is corrupt or unreadable: {exc}. Promotion blocked."
+            ) from exc
+
+        if not isinstance(curr_data, dict) or not curr_data.get("production_version"):
+            raise RuntimeError(
+                f"Active registry at '{registry_path}' lacks required 'production_version' field: {curr_data}. Promotion blocked."
+            )
+        previous_version = str(curr_data["production_version"])
+
+        if decision.active_version != previous_version:
+            raise ValueError(
+                f"Decision active_version '{decision.active_version}' does not match "
+                f"current active production version '{previous_version}' in {registry_path}"
+            )
 
     reason_text = (
         f"staged demonstration fixture: {decision.reason_code}"
@@ -263,7 +287,7 @@ def promote_candidate(
     tmp_path.write_text(json.dumps(new_active_payload, indent=2), encoding="utf-8")
     os.replace(tmp_path, registry_path)
 
-    # Append to history.jsonl
+    # Append to history.jsonl with compensating transaction on failure
     history_entry = {
         "event": "PROMOTED",
         "version": candidate_version,
@@ -273,7 +297,20 @@ def promote_candidate(
         "reason": reason_text,
         "reason_code": decision.reason_code,
     }
-    with history_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(history_entry) + "\n")
+    try:
+        with history_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(history_entry) + "\n")
+    except Exception as exc:
+        # Compensating transaction: revert active pointer to previous state
+        if orig_active_bytes is not None:
+            revert_tmp = registry_path.parent / f"{registry_path.name}.revert.tmp"
+            revert_tmp.write_bytes(orig_active_bytes)
+            os.replace(revert_tmp, registry_path)
+        elif registry_path.exists():
+            registry_path.unlink()
+        raise RuntimeError(
+            f"Failed to record PROMOTED event in audit history at '{history_path}': {exc}. "
+            f"Compensating transaction executed: active registry reverted to '{previous_version}'."
+        ) from exc
 
     return new_active_payload

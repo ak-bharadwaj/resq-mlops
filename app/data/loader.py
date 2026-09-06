@@ -382,6 +382,7 @@ def load_telemetry_window(
     cutoff_utc: dt.datetime,
     start_utc: Optional[dt.datetime] = None,
     columns: Optional[List[str]] = None,
+    schema_contract: Optional[TelemetrySchemaContract] = None,
 ) -> pd.DataFrame:
     """Load telemetry strictly adhering to Monday 00:00 UTC cutoff.
 
@@ -424,7 +425,7 @@ def load_telemetry_window(
     df = pd.read_parquet(telemetry_path, columns=cols)
 
     # Enforce authoritative model telemetry schema contract on incoming raw DataFrame
-    contract = TelemetrySchemaContract.load_active_schema()
+    contract = schema_contract if schema_contract is not None else TelemetrySchemaContract.load_active_schema()
     contract.validate_or_raise(df, projected=(columns is not None))
 
     df["ts"] = pd.to_datetime(df["ts_utc"], utc=True, format="ISO8601")

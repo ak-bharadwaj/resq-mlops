@@ -39,21 +39,21 @@ class PackageAlreadyExistsError(TrainingError):
     """Raised when attempting to overwrite an existing frozen model package."""
 
 
-def assert_clean_working_tree(file_path: pathlib.Path) -> None:
-    """Assert that file_path has no uncommitted modifications in git per v25 Section 6.
+def assert_clean_working_tree(file_path: pathlib.Path | None = None) -> None:
+    """Assert that the git repository has no uncommitted modifications per v25 Section 6.
 
     Strict fail-closed semantics:
-    - scorer file missing         -> TrainingError
-    - git executable missing      -> TrainingError
-    - git status non-zero         -> TrainingError
-    - git status output non-empty -> TrainingError
-    - git status success + empty  -> PASS
+    - scorer file missing (if specified) -> TrainingError
+    - git executable missing             -> TrainingError
+    - git status non-zero                -> TrainingError
+    - git status output non-empty        -> TrainingError
+    - git status success + empty         -> PASS
     """
-    if not file_path.exists():
+    if file_path is not None and not file_path.exists():
         raise TrainingError(f"Scorer file missing for clean-tree assertion: {file_path}")
     try:
         res = subprocess.run(
-            ["git", "status", "--porcelain", str(file_path)],
+            ["git", "status", "--porcelain"],
             capture_output=True,
             text=True,
             check=False,
@@ -71,7 +71,7 @@ def assert_clean_working_tree(file_path: pathlib.Path) -> None:
     output = res.stdout.strip()
     if output:
         raise TrainingError(
-            f"Packaging requires clean working tree per v25 Section 6: {file_path} has uncommitted modifications:\n{output}"
+            f"Packaging requires clean working tree per v25 Section 6: repository has uncommitted modifications:\n{output}"
         )
 
 
@@ -154,11 +154,11 @@ def train_candidate(
 
     # 4. Destination Candidate Directory and Immutability Guard
     target_dir = output_dir or (pathlib.Path("models") / candidate_version)
-    if target_dir.exists() and (target_dir / "manifest.json").exists():
+    if target_dir.exists() and any(target_dir.iterdir()):
         raise PackageAlreadyExistsError(
-            f"Frozen model package already exists at '{target_dir}'. "
+            f"Frozen model package already exists and is not empty at '{target_dir}'. "
             f"Model packages are immutable and cannot be overwritten. "
-            f"To train a new model, declare a new version."
+            f"To train a new model, declare a new version or provide an empty destination."
         )
     target_dir.mkdir(parents=True, exist_ok=True)
 

@@ -55,12 +55,59 @@ def resolve_active_model_version(registry_path: pathlib.Path = pathlib.Path("reg
     return str(version)
 
 
+def compute_artifact_hash(model_dir: pathlib.Path) -> str:
+    """Compute SHA256 covering immutable behavior-defining artifact files per v25 Section 6.
+
+    Hash covers: canonical model.joblib + model_config.json + feature_schema.json + scorer_identity.txt.
+    schema.json is validated as part of the artifact contract but is not duplicated into hash inputs.
+    Text files are normalized to UTF-8 LF endings per v25 Section 6 / Rule 10 to guarantee
+    bit-for-bit cross-platform reproducibility across Windows, Linux, and Git checkouts.
+    """
+    hasher = hashlib.sha256()
+    hash_files = ["model.joblib", "model_config.json", "feature_schema.json", "scorer_identity.txt"]
+    for fname in hash_files:
+        fpath = model_dir / fname
+        if not fpath.exists():
+            raise FileNotFoundError(f"Required behavior-defining artifact file missing for hash: {fpath}")
+        hasher.update(fname.encode("utf-8"))
+        raw_bytes = fpath.read_bytes()
+        if fname.endswith((".json", ".txt")):
+            raw_bytes = raw_bytes.replace(b"\r\n", b"\n")
+        hasher.update(raw_bytes)
+    return f"sha256:{hasher.hexdigest()}"
+
+
 def load_active_artifact_config(
     model_dir: pathlib.Path,
 ) -> tuple[dict[str, Any], TelemetrySchemaContract]:
-    """Load and validate configuration and schema for the active model artifact."""
+    """Load, cryptographically verify, and validate configuration and schema for the active model artifact."""
     if not model_dir.exists() or not model_dir.is_dir():
         raise ModelArtifactError(f"Active model artifact directory does not exist: {model_dir}")
+
+    manifest_path = model_dir / "manifest.json"
+    if not manifest_path.exists():
+        raise ModelArtifactError(f"Active model manifest missing: {manifest_path}")
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ModelArtifactError(f"Corrupt model manifest at {manifest_path}: {exc}") from exc
+
+    declared_hash = manifest.get("artifact_hash")
+    if not declared_hash:
+        raise ModelArtifactError(f"Manifest at {manifest_path} lacks required 'artifact_hash' field.")
+
+    # Cryptographic integrity check: declared hash must match on-disk package files
+    try:
+        computed_hash = compute_artifact_hash(model_dir)
+    except Exception as exc:
+        raise ModelArtifactError(f"Failed to compute artifact hash for {model_dir}: {exc}") from exc
+
+    if declared_hash != computed_hash:
+        raise ModelArtifactError(
+            f"Artifact integrity compromised for model package '{model_dir.name}': "
+            f"declared '{declared_hash}' != computed '{computed_hash}'. Failing closed."
+        )
 
     config_path = model_dir / "model_config.json"
     if not config_path.exists():
@@ -255,6 +302,7 @@ def predict_week(
         data_dir,
         cutoff_utc=cutoff_utc,
         start_utc=start_utc,
+        schema_contract=schema_contract,
     )
 
     # 5. Authoritative Schema Contract Enforcement on Raw Window
