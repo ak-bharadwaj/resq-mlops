@@ -83,7 +83,7 @@ def check_replay_provenance() -> dict:
                         "target_validation": "VERIFIED",
                         "atomic_switch": "VERIFIED",
                         "replay_equality": "VERIFIED",
-                        "restored_version": record.get("version", "v0001"),
+                        "restored_version": record.get("version") or "UNAVAILABLE",
                     }
         except Exception:
             pass
@@ -101,7 +101,7 @@ def check_replay_provenance() -> dict:
                     "target_validation": "VERIFIED",
                     "atomic_switch": "VERIFIED",
                     "replay_equality": "VERIFIED",
-                    "restored_version": run_data.get("model_version", "v0001"),
+                    "restored_version": run_data.get("model_version") or "UNAVAILABLE",
                 }
         except Exception:
             pass
@@ -119,7 +119,7 @@ def check_replay_provenance() -> dict:
                     "target_validation": "VERIFIED" if rb_data.get("target_validation_passed") else "UNAVAILABLE",
                     "atomic_switch": "VERIFIED",
                     "replay_equality": "VERIFIED",
-                    "restored_version": rb_data.get("active_restored", "v0001"),
+                    "restored_version": rb_data.get("active_restored") or "UNAVAILABLE",
                 }
         except Exception:
             pass

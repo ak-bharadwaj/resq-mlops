@@ -364,6 +364,102 @@ class TestFrontendShell(unittest.TestCase):
         self.assertIn('"%1"=="frontend"', make_cmd_content)
         self.assertIn("frontend/server.py", make_cmd_content)
 
+    def test_initial_html_contains_no_hardcoded_factual_states(self):
+        """Assert that index.html contains no hardcoded factual states or narrative defaults."""
+        html_content = (self.static_dir / "index.html").read_text(encoding="utf-8")
+
+        forbidden_factual_phrases = [
+            "Why wasn't v0002 deployed?",
+            "59 unseen gateways",
+            "59 unseen",
+            "+1 missed broken week",
+            "+1 missed",
+            "REJECT_GROUPED_DISAGREEMENT",
+            "GATE: REJECTED",
+            "Candidate NOT deployed",
+            "Active v0001 remains protected",
+            "17 missed",
+            "18 missed",
+            "15.49%",
+            "71 → 60",
+            "71 -> 60",
+            "v0002 CANDIDATE",
+            "v0001 ACTIVE",
+        ]
+
+        for phrase in forbidden_factual_phrases:
+            self.assertNotIn(
+                phrase,
+                html_content,
+                f"Found hardcoded factual phrase '{phrase}' in index.html! Initial HTML must use neutral placeholders."
+            )
+
+    def test_javascript_contains_no_factual_fallback_strings(self):
+        """Assert that app.js contains zero hardcoded model version literals or fallbacks."""
+        import re
+        app_js_text = (self.static_dir / "app.js").read_text(encoding="utf-8")
+
+        # Must not contain hardcoded model version literals
+        version_matches = re.findall(r"\bv000[12]\b", app_js_text)
+        self.assertEqual(
+            len(version_matches),
+            0,
+            f"Found hardcoded version strings {version_matches} in app.js! All versions must be dynamic."
+        )
+
+        # Must not have fallback assignments to specific version strings
+        forbidden_patterns = [
+            r'\|\|\s*["\']v0001["\']',
+            r'\|\|\s*["\']v0002["\']',
+            r'\?\?\s*["\']v0001["\']',
+            r'\?\?\s*["\']v0002["\']',
+        ]
+        for pat in forbidden_patterns:
+            matches = re.findall(pat, app_js_text)
+            self.assertEqual(
+                len(matches),
+                0,
+                f"Found fallback pattern '{pat}' in app.js! Must fail closed without fabricating defaults."
+            )
+
+    def test_fail_closed_drawer_elements_exist(self):
+        """Verify dynamic fail-closed drawer elements exist in index.html for JavaScript binding."""
+        html_content = (self.static_dir / "index.html").read_text(encoding="utf-8")
+        required_fc_elements = [
+            'id="fc-step1-pill"',
+            'id="fc-step1-desc"',
+            'id="fc-step2-pill"',
+            'id="fc-step2-desc"',
+            'id="fc-step3-pill"',
+            'id="fc-step3-desc"',
+            'id="fc-step4-pill"',
+            'id="fc-step4-desc"',
+        ]
+        for elem_id in required_fc_elements:
+            self.assertIn(elem_id, html_content, f"Missing required dynamic element {elem_id} in index.html")
+
+    def test_server_check_replay_provenance_no_hardcoded_v0001_fallback(self):
+        """Verify check_replay_provenance returns UNAVAILABLE if restored version is missing."""
+        from frontend.server import check_replay_provenance
+        # Simulate history event without version key
+        simulated_history = [
+            '{"event": "ROLLED_BACK", "timestamp": "2026-09-05T01:00:00Z"}\n'
+        ]
+        with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, dir=self.repo_root) as tf:
+            tf.writelines(simulated_history)
+            temp_path = pathlib.Path(tf.name)
+
+        try:
+            with patch("frontend.server.REPO_ROOT", temp_path.parent):
+                with patch.object(pathlib.Path, "exists", return_value=True):
+                    with patch.object(pathlib.Path, "read_text", return_value="".join(simulated_history)):
+                        res = check_replay_provenance()
+                        self.assertEqual(res["restored_version"], "UNAVAILABLE", "Must not fall back to v0001")
+        finally:
+            if temp_path.exists():
+                temp_path.unlink()
+
 
 if __name__ == "__main__":
     unittest.main()
+

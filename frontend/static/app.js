@@ -170,6 +170,7 @@ function populateGovernancePanel(promotion, activeReg) {
   // Modal Elements
   const modalCandEl = document.getElementById("modal-candidate");
   const modalActEl = document.getElementById("modal-active");
+  const explainerHeadingEl = document.getElementById("gov-explainer-heading");
   const explainerTextEl = document.getElementById("gov-explainer-text");
   const explainerCodeEl = document.getElementById("gov-explainer-code");
   const devTbodyEl = document.getElementById("dev-evidence-tbody");
@@ -184,6 +185,16 @@ function populateGovernancePanel(promotion, activeReg) {
   const modalFinalDeployEl = document.getElementById("modal-final-deployment");
   const modalFinalProtectEl = document.getElementById("modal-final-protection");
 
+  // Fail-Closed Drawer Elements
+  const fcStep1Pill = document.getElementById("fc-step1-pill");
+  const fcStep1Desc = document.getElementById("fc-step1-desc");
+  const fcStep2Pill = document.getElementById("fc-step2-pill");
+  const fcStep2Desc = document.getElementById("fc-step2-desc");
+  const fcStep3Pill = document.getElementById("fc-step3-pill");
+  const fcStep3Desc = document.getElementById("fc-step3-desc");
+  const fcStep4Pill = document.getElementById("fc-step4-pill");
+  const fcStep4Desc = document.getElementById("fc-step4-desc");
+
   // Always enforce truthful nullability for fleet-wide ground truth (labels do not exist post-cutoff)
   if (qualityFleetEl) {
     qualityFleetEl.innerHTML = `<span class="status-pill pill-unavailable">UNAVAILABLE (no post-cutoff labels)</span>`;
@@ -192,6 +203,8 @@ function populateGovernancePanel(promotion, activeReg) {
   // 1. Active Model Identity
   const hasActive = activeReg?.status === "AVAILABLE" && activeReg.data?.production_version;
   const activeVer = hasActive ? String(activeReg.data.production_version) : null;
+  const activeLabel = activeVer ? `Active ${activeVer}` : "Active production model";
+
   if (activeVer) {
     if (govActiveEl) govActiveEl.innerHTML = `<span>${activeVer}</span> <span style="color: var(--text-dim); font-size: 11px;">(Baseline 3-Sigma)</span>`;
     if (modalActEl) modalActEl.textContent = activeVer;
@@ -205,6 +218,8 @@ function populateGovernancePanel(promotion, activeReg) {
   if (hasPromotion) {
     const data = promotion.data;
     const candVer = data.candidate_version ? String(data.candidate_version) : null;
+    const candName = candVer || "Candidate";
+
     if (candVer) {
       if (govCandidateEl) govCandidateEl.innerHTML = `<span>${candVer}</span> <span style="color: var(--text-dim); font-size: 11px;">(Weighted Multi-Signal)</span>`;
       if (modalCandEl) modalCandEl.textContent = candVer;
@@ -217,16 +232,27 @@ function populateGovernancePanel(promotion, activeReg) {
     const decisionCode = data.reason_code;
     const isRejected = decision === "REJECT";
 
-    // Explainer Block (Prominent)
+    // Explainer Block (Prominent) - strictly derived from candidate version
+    if (explainerHeadingEl) {
+      if (candVer && isRejected) {
+        explainerHeadingEl.textContent = `Why wasn't ${candVer} deployed?`;
+      } else if (candVer && decision === "PROMOTE") {
+        explainerHeadingEl.textContent = `Why was ${candVer} promoted?`;
+      } else {
+        explainerHeadingEl.textContent = "Candidate Evaluation Narrative";
+      }
+    }
+
     if (explainerTextEl) {
       if (isRejected) {
-        explainerTextEl.textContent = "Why wasn't v0002 deployed? It improved on the development windows, but performed worse on unseen gateways. The promotion gate rejected it to protect production.";
+        explainerTextEl.textContent = `${candName} improved on the development windows, but performed worse on unseen gateways. The promotion gate rejected it to protect production.`;
       } else if (decision === "PROMOTE") {
-        explainerTextEl.textContent = `${candVer || "Candidate"} demonstrated superior cost mitigation across development windows and holdout verification. Promoted to production.`;
+        explainerTextEl.textContent = `${candName} demonstrated superior cost mitigation across development windows and holdout verification. Promoted to production.`;
       } else {
         explainerTextEl.textContent = "Decision narrative unavailable. Candidate promotion status undefined.";
       }
     }
+
     if (explainerCodeEl) {
       explainerCodeEl.textContent = decisionCode || "UNAVAILABLE";
       explainerCodeEl.className = isRejected ? "status-pill pill-rejected" : (decision === "PROMOTE" ? "status-pill pill-active" : "status-pill pill-unavailable");
@@ -251,7 +277,7 @@ function populateGovernancePanel(promotion, activeReg) {
 
     const deployText = isRejected ? "Candidate NOT deployed" : (decision === "PROMOTE" ? "Candidate DEPLOYED" : "Candidate status UNAVAILABLE");
     const deployColor = isRejected ? "#fca5a5" : (decision === "PROMOTE" ? "#6ee7b7" : "var(--text-dim)");
-    const protectText = isRejected ? `Active ${activeVer || "v0001"} remains protected` : (decision === "PROMOTE" ? `Active model promoted to ${candVer || "candidate"}` : "Production status unconfirmed");
+    const protectText = isRejected ? `${activeLabel} remains protected` : (decision === "PROMOTE" ? (candVer ? `Active model promoted to ${candVer}` : "Active model promoted") : "Production status unconfirmed");
 
     if (finalGateDeployEl) {
       finalGateDeployEl.textContent = deployText;
@@ -370,7 +396,7 @@ function populateGovernancePanel(promotion, activeReg) {
       const holdoutActive = holdout.active_missed_broken_weeks;
       const holdoutCand = holdout.candidate_missed_broken_weeks;
       const diff = holdoutCand - holdoutActive;
-      const isReg = diff > 0;
+      const isReg = diff > 0 || holdout.directional_agreement === false;
       const regLabel = isReg ? "Holdout Regression" : (diff < 0 ? "Holdout Improvement" : "Equal");
 
       if (holdoutGatewaysEl) {
@@ -397,7 +423,7 @@ function populateGovernancePanel(promotion, activeReg) {
       }
 
       if (verdictSummaryEl) {
-        verdictSummaryEl.textContent = `Candidate ${candVer || "candidate"} was rejected: holdout fleet regression (${holdoutCand} vs ${holdoutActive} missed broken weeks). Active ${activeVer || "production model"} remains safely in production.`;
+        verdictSummaryEl.textContent = `Candidate ${candName} was rejected: holdout fleet regression (${holdoutCand} vs ${holdoutActive} missed broken weeks). ${activeLabel} remains safely in production.`;
       }
 
       // Quality matrix: Holdout
@@ -405,6 +431,21 @@ function populateGovernancePanel(promotion, activeReg) {
         const gwCount = holdout.holdout_gateways_count !== undefined ? holdout.holdout_gateways_count : "--";
         const agreeStr = holdout.directional_agreement !== undefined ? `directional agreement: ${holdout.directional_agreement}` : "agreement unrecorded";
         qualityHoldoutEl.textContent = `${gwCount} gateways (${agreeStr})`;
+      }
+
+      // Fail-Closed Architecture Details (Dynamic)
+      if (fcStep1Pill && fcStep1Desc) {
+        const delta = holdoutCand - holdoutActive;
+        const deltaStr = delta > 0 ? `+${delta}` : `${delta}`;
+        if (isReg) {
+          fcStep1Pill.textContent = "Candidate Regression";
+          fcStep1Pill.className = "fc-pill pill-rejected";
+          fcStep1Desc.textContent = `Holdout evaluation detects ${deltaStr} missed broken week${Math.abs(delta) === 1 ? '' : 's'} on unseen gateways`;
+        } else {
+          fcStep1Pill.textContent = "Holdout Agreement";
+          fcStep1Pill.className = "fc-pill pill-pass";
+          fcStep1Desc.textContent = `Holdout evaluation agrees with development windows (${deltaStr} delta)`;
+        }
       }
     } else {
       renderUnavailable(govHoldoutEl, "Holdout results unavailable");
@@ -417,7 +458,53 @@ function populateGovernancePanel(promotion, activeReg) {
       if (verdictSummaryEl) {
         verdictSummaryEl.textContent = data.explanation || `Verdict: ${decision || 'UNAVAILABLE'}`;
       }
+
+      if (fcStep1Pill) renderUnavailable(fcStep1Pill, "Holdout unavailable");
+      if (fcStep1Desc) fcStep1Desc.textContent = "Holdout evaluation results unavailable";
     }
+
+    // Fail-Closed Steps 2, 3, 4
+    if (fcStep2Pill && fcStep2Desc) {
+      if (decision) {
+        fcStep2Pill.textContent = isRejected ? "Promotion Blocked" : (decision === "PROMOTE" ? "Promotion Approved" : "Gate Evaluated");
+        fcStep2Pill.className = isRejected ? "fc-pill pill-rejected" : (decision === "PROMOTE" ? "fc-pill pill-pass" : "fc-pill pill-unavailable");
+        fcStep2Desc.textContent = decisionCode ? `Gate trips ${decisionCode}; execution halts safely` : `Gate outcome: ${decision}`;
+      } else {
+        renderUnavailable(fcStep2Pill, "Decision missing");
+        fcStep2Desc.textContent = "Promotion gate outcome undefined";
+      }
+    }
+
+    if (fcStep3Pill && fcStep3Desc) {
+      if (isRejected) {
+        fcStep3Pill.textContent = "Active Pointer Unchanged";
+        fcStep3Pill.className = "fc-pill pill-safe";
+        fcStep3Desc.textContent = `registry/active.json untouched; remains pointing to validated ${activeVer || "active model"}`;
+      } else if (decision === "PROMOTE") {
+        fcStep3Pill.textContent = "Active Pointer Updated";
+        fcStep3Pill.className = "fc-pill pill-pass";
+        fcStep3Desc.textContent = `registry/active.json updated to point to ${candName}`;
+      } else {
+        renderUnavailable(fcStep3Pill, "Pointer state unavailable");
+        fcStep3Desc.textContent = "Registry pointer state unconfirmed";
+      }
+    }
+
+    if (fcStep4Pill && fcStep4Desc) {
+      if (isRejected) {
+        fcStep4Pill.textContent = "Operations Protected";
+        fcStep4Pill.className = "fc-pill pill-active";
+        fcStep4Desc.textContent = `Technicians dispatched strictly via verified ${activeVer || "active model"} without disruption`;
+      } else if (decision === "PROMOTE") {
+        fcStep4Pill.textContent = "Operations Updated";
+        fcStep4Pill.className = "fc-pill pill-pass";
+        fcStep4Desc.textContent = `Technicians dispatched via newly promoted ${candName}`;
+      } else {
+        renderUnavailable(fcStep4Pill, "Dispatch state unavailable");
+        fcStep4Desc.textContent = "Dispatch model version unconfirmed";
+      }
+    }
+
   } else {
     // Promotion Artifact is Unavailable
     renderUnavailable(govCandidateEl, promotion?.reason || "Candidate version unavailable");
@@ -437,6 +524,7 @@ function populateGovernancePanel(promotion, activeReg) {
     renderUnavailable(qualityDevEl, promotion?.reason || "Development windows evidence unavailable");
     renderUnavailable(qualityHoldoutEl, promotion?.reason || "Holdout evidence unavailable");
 
+    if (explainerHeadingEl) explainerHeadingEl.textContent = "Candidate Evaluation Narrative";
     if (explainerTextEl) explainerTextEl.textContent = "Decision narrative unavailable. Promotion evidence has not been evaluated.";
     if (explainerCodeEl) {
       explainerCodeEl.textContent = "ARTIFACT_UNAVAILABLE";
@@ -458,6 +546,15 @@ function populateGovernancePanel(promotion, activeReg) {
     if (verdictSummaryEl) {
       verdictSummaryEl.textContent = promotion?.reason || "Promotion decision artifact unavailable. Run 'make promote' to evaluate candidate.";
     }
+
+    if (fcStep1Pill) renderUnavailable(fcStep1Pill, "Promotion evidence unavailable");
+    if (fcStep1Desc) fcStep1Desc.textContent = "Holdout evaluation results unavailable";
+    if (fcStep2Pill) renderUnavailable(fcStep2Pill, "Promotion evidence unavailable");
+    if (fcStep2Desc) fcStep2Desc.textContent = "Promotion gate outcome undefined";
+    if (fcStep3Pill) renderUnavailable(fcStep3Pill, "Promotion evidence unavailable");
+    if (fcStep3Desc) fcStep3Desc.textContent = "Registry pointer state unconfirmed";
+    if (fcStep4Pill) renderUnavailable(fcStep4Pill, "Promotion evidence unavailable");
+    if (fcStep4Desc) fcStep4Desc.textContent = "Dispatch model version unconfirmed";
   }
 }
 
@@ -697,6 +794,43 @@ function markAllSummaryUnavailable(errorMessage) {
   if (modalFinalProtectEl) renderUnavailable(modalFinalProtectEl, errorMessage);
   if (qualityDevEl) renderUnavailable(qualityDevEl, errorMessage);
   if (qualityHoldoutEl) renderUnavailable(qualityHoldoutEl, errorMessage);
+
+  const explainerHeadingEl = document.getElementById("gov-explainer-heading");
+  const explainerTextEl = document.getElementById("gov-explainer-text");
+  const explainerCodeEl = document.getElementById("gov-explainer-code");
+  const headerStatusEl = document.getElementById("gov-header-status");
+  const verdictPillEl = document.getElementById("gov-verdict-pill");
+  const verdictCodeEl = document.getElementById("gov-verdict-code");
+  const verdictSummaryEl = document.getElementById("gov-verdict-summary");
+  const finalGateDeployEl = document.getElementById("final-gate-deployment");
+  const finalGateProtectEl = document.getElementById("final-gate-protection");
+  const fcStep1Pill = document.getElementById("fc-step1-pill");
+  const fcStep1Desc = document.getElementById("fc-step1-desc");
+  const fcStep2Pill = document.getElementById("fc-step2-pill");
+  const fcStep2Desc = document.getElementById("fc-step2-desc");
+  const fcStep3Pill = document.getElementById("fc-step3-pill");
+  const fcStep3Desc = document.getElementById("fc-step3-desc");
+  const fcStep4Pill = document.getElementById("fc-step4-pill");
+  const fcStep4Desc = document.getElementById("fc-step4-desc");
+
+  if (explainerHeadingEl) explainerHeadingEl.textContent = "Candidate Evaluation Narrative";
+  if (explainerTextEl) explainerTextEl.textContent = "Decision narrative unavailable. Network error fetching summary.";
+  if (explainerCodeEl) renderUnavailable(explainerCodeEl, errorMessage);
+  if (headerStatusEl) renderUnavailable(headerStatusEl, errorMessage);
+  if (verdictPillEl) renderUnavailable(verdictPillEl, errorMessage);
+  if (verdictCodeEl) renderUnavailable(verdictCodeEl, errorMessage);
+  if (verdictSummaryEl) verdictSummaryEl.textContent = "Promotion decision artifact unavailable. " + errorMessage;
+  if (finalGateDeployEl) finalGateDeployEl.textContent = "Candidate status UNAVAILABLE";
+  if (finalGateProtectEl) finalGateProtectEl.textContent = "Production status unconfirmed";
+
+  if (fcStep1Pill) renderUnavailable(fcStep1Pill, errorMessage);
+  if (fcStep1Desc) fcStep1Desc.textContent = "Holdout evaluation results unavailable";
+  if (fcStep2Pill) renderUnavailable(fcStep2Pill, errorMessage);
+  if (fcStep2Desc) fcStep2Desc.textContent = "Promotion gate outcome undefined";
+  if (fcStep3Pill) renderUnavailable(fcStep3Pill, errorMessage);
+  if (fcStep3Desc) fcStep3Desc.textContent = "Registry pointer state unconfirmed";
+  if (fcStep4Pill) renderUnavailable(fcStep4Pill, errorMessage);
+  if (fcStep4Desc) fcStep4Desc.textContent = "Dispatch model version unconfirmed";
 }
 
 /**

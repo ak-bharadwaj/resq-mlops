@@ -92,17 +92,17 @@
             <span>⚖️</span>
             <span>Model Governance & Promotion Gate</span>
           </div>
-          <span class="status-pill pill-active" id="gov-header-status">PRODUCTION GUARDED</span>
+          <span class="status-pill pill-unavailable" id="gov-header-status">EVALUATING...</span>
         </div>
         <div class="panel-content">
-          <div class="governance-verdict-banner" id="gov-verdict-banner">
+          <div class="governance-verdict-banner unavailable" id="gov-verdict-banner">
             <div class="verdict-tag-row">
-              <span class="status-pill pill-rejected" id="gov-verdict-pill">GATE: REJECTED</span>
-              <span class="verdict-reason-code" id="gov-verdict-code">REJECT_GROUPED_DISAGREEMENT</span>
+              <span class="status-pill pill-unavailable" id="gov-verdict-pill">GATE: EVALUATING...</span>
+              <span class="verdict-reason-code" id="gov-verdict-code">--</span>
             </div>
             <div class="final-gate-statement">
-              <strong id="final-gate-deployment" style="color: #fca5a5;">Candidate NOT deployed</strong> —
-              <span id="final-gate-protection">Active v0001 remains protected</span>
+              <strong id="final-gate-deployment" style="color: var(--text-dim);">Checking deployment...</strong> —
+              <span id="final-gate-protection">Checking active model status...</span>
             </div>
             <div class="verdict-summary" id="gov-verdict-summary">
               Loading promotion audit summary...
@@ -253,8 +253,8 @@
         <div class="panel-content" style="justify-content: center;">
           <div class="lifecycle-timeline-container" id="lifecycle-timeline">
             <div class="timeline-step">
-              <div class="timeline-pill pill-candidate" id="flow-candidate">v0002 CANDIDATE</div>
-              <div class="timeline-sub">Weighted Multi-Signal</div>
+              <div class="timeline-pill pill-unavailable" id="flow-candidate">-- CANDIDATE</div>
+              <div class="timeline-sub">Candidate Model</div>
             </div>
             <div class="timeline-connector">➔</div>
             <div class="timeline-step">
@@ -263,13 +263,13 @@
             </div>
             <div class="timeline-connector">➔</div>
             <div class="timeline-step">
-              <div class="timeline-pill pill-rejected" id="flow-gate">REJECTED</div>
-              <div class="timeline-sub">Grouped Disagreement</div>
+              <div class="timeline-pill pill-unavailable" id="flow-gate">EVALUATION GATE</div>
+              <div class="timeline-sub">Gate Assessment</div>
             </div>
             <div class="timeline-connector">➔</div>
             <div class="timeline-step">
-              <div class="timeline-pill pill-active" id="flow-restored">v0001 ACTIVE</div>
-              <div class="timeline-sub">Protected Baseline</div>
+              <div class="timeline-pill pill-unavailable" id="flow-restored">-- ACTIVE</div>
+              <div class="timeline-sub">Production Model</div>
             </div>
           </div>
         </div>
@@ -336,25 +336,25 @@
           <div class="modal-models-strip">
             <div class="modal-model-item">
               <span class="info-label">Candidate:</span>
-              <span class="modal-model-val" id="modal-candidate">v0002</span>
-              <span class="model-role">(Weighted Multi-Signal)</span>
+              <span class="modal-model-val" id="modal-candidate">--</span>
+              <span class="model-role" id="modal-candidate-role">(Weighted Multi-Signal)</span>
             </div>
             <div class="modal-model-item">
               <span class="info-label">Active:</span>
-              <span class="modal-model-val" id="modal-active">v0001</span>
-              <span class="model-role">(Baseline 3-Sigma)</span>
+              <span class="modal-model-val" id="modal-active">--</span>
+              <span class="model-role" id="modal-active-role">(Baseline 3-Sigma)</span>
             </div>
           </div>
 
           <!-- Prominent Operational Explanation Block -->
           <div class="business-explainer-box">
-            <div class="explainer-heading">Why wasn't v0002 deployed?</div>
+            <div class="explainer-heading" id="gov-explainer-heading">Candidate Evaluation Narrative</div>
             <p class="explainer-narrative" id="gov-explainer-text">
-              It improved on the development windows, but performed worse on unseen gateways. The promotion gate rejected it to protect production.
+              Evaluating candidate promotion evidence...
             </p>
             <div class="explainer-code-row">
               <span class="code-tag-label">Technical decision:</span>
-              <span class="status-pill pill-rejected" id="gov-explainer-code">REJECT_GROUPED_DISAGREEMENT</span>
+              <span class="status-pill pill-unavailable" id="gov-explainer-code">--</span>
             </div>
           </div>
 
@@ -405,7 +405,7 @@
             </div>
             
             <div class="holdout-review-body">
-              <div class="holdout-scope-line" id="holdout-gateways">59 unseen gateways</div>
+              <div class="holdout-scope-line" id="holdout-gateways">-- unseen gateways</div>
               <div class="holdout-counts-grid">
                 <div class="holdout-count-col">
                   <span class="info-label">Active:</span>
@@ -418,7 +418,7 @@
                   <span class="kpi-subtext">Multi-signal faults</span>
                 </div>
                 <div class="holdout-count-col" style="align-items: flex-end; justify-content: center;">
-                  <span class="status-pill pill-rejected" id="holdout-status-badge">✕ REGRESSION</span>
+                  <span class="status-pill pill-unavailable" id="holdout-status-badge">--</span>
                 </div>
               </div>
               <div class="callout-box" style="margin-top: 10px; font-size: 12px;">
@@ -431,13 +431,13 @@
           <div class="evidence-section-card final-decision-card">
             <div class="evidence-section-header">
               <div class="evidence-section-title">FINAL DECISION</div>
-              <span class="status-pill pill-rejected" id="final-decision-badge">REJECT</span>
+              <span class="status-pill pill-unavailable" id="final-decision-badge">--</span>
             </div>
             <div class="final-decision-body">
-              <div class="verdict-reason-code" id="final-decision-code">REJECT_GROUPED_DISAGREEMENT</div>
+              <div class="verdict-reason-code" id="final-decision-code">--</div>
               <div class="final-gate-statement" style="margin-top: 6px;">
-                <strong id="modal-final-deployment" style="color: #fca5a5;">Candidate NOT deployed</strong> —
-                <span id="modal-final-protection">Active v0001 remains protected</span>
+                <strong id="modal-final-deployment" style="color: var(--text-dim);">Checking deployment...</strong> —
+                <span id="modal-final-protection">Checking active model status...</span>
               </div>
             </div>
           </div>
@@ -451,23 +451,23 @@
             <div class="accordion-content">
               <div class="fail-closed-flow">
                 <div class="fc-step">
-                  <div class="fc-pill pill-rejected">Candidate Regression</div>
-                  <div class="fc-desc">Holdout evaluation detects +1 missed broken week on unseen gateways</div>
+                  <div class="fc-pill pill-unavailable" id="fc-step1-pill">Holdout Evaluation</div>
+                  <div class="fc-desc" id="fc-step1-desc">Evaluating performance on unseen gateways...</div>
                 </div>
                 <div class="fc-arrow">➔</div>
                 <div class="fc-step">
-                  <div class="fc-pill pill-rejected">Promotion Blocked</div>
-                  <div class="fc-desc">Gate trips REJECT_GROUPED_DISAGREEMENT; execution halts safely</div>
+                  <div class="fc-pill pill-unavailable" id="fc-step2-pill">Promotion Gate</div>
+                  <div class="fc-desc" id="fc-step2-desc">Awaiting authoritative promotion gate outcome...</div>
                 </div>
                 <div class="fc-arrow">➔</div>
                 <div class="fc-step">
-                  <div class="fc-pill pill-safe">Active Pointer Unchanged</div>
-                  <div class="fc-desc">registry/active.json untouched; remains pointing to validated v0001</div>
+                  <div class="fc-pill pill-unavailable" id="fc-step3-pill">Active Pointer</div>
+                  <div class="fc-desc" id="fc-step3-desc">Verifying registry/active.json pointer state...</div>
                 </div>
                 <div class="fc-arrow">➔</div>
                 <div class="fc-step">
-                  <div class="fc-pill pill-active">Operations Protected</div>
-                  <div class="fc-desc">Technicians dispatched strictly via verified v0001 without disruption</div>
+                  <div class="fc-pill pill-unavailable" id="fc-step4-pill">Fleet Protection</div>
+                  <div class="fc-desc" id="fc-step4-desc">Verifying dispatch continuity via active model...</div>
                 </div>
               </div>
             </div>
