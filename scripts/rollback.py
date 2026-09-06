@@ -87,18 +87,18 @@ def main() -> None:
     target_version = args.to or prev_version
     if curr_active == "v0001" and args.to is None:
         # Canonical Rollback Demonstration per ARCHITECTURE_v25_FREEZE.md Section 10:
-        # Active production is baseline v0001. Stage candidate v0002 with previous_version=v0001
+        # Active production is baseline v0001. Stage candidate v_promotable with previous_version=v0001
         # to demonstrate atomic target validation, atomic pointer switch, and bit-for-bit replay equality.
         print("Notice: Active model is baseline v0001.")
-        print("Executing canonical rollback demonstration: simulated active v0002 -> rollback to v0001.\n")
+        print("Executing canonical rollback demonstration: simulated active v_promotable -> rollback to v0001.\n")
         active_data = {
-            "production_version": "v0002",
+            "production_version": "v_promotable",
             "previous_version": "v0001",
             "changed_at": "2026-09-05T00:00:00Z",
             "reason": "simulated candidate deployment for rollback rehearsal",
         }
         args.registry.write_text(json.dumps(active_data, indent=2), encoding="utf-8")
-        curr_active = "v0002"
+        curr_active = "v_promotable"
         target_version = "v0001"
 
     print(f"Current active: {curr_active}")

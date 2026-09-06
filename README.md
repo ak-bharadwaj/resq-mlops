@@ -28,7 +28,7 @@ make run
 - `make train`: Runs offline candidate construction, rolling-window backtesting, and evidence generation.
 - `make predict`: Generates predictions for a single week or batch.
 - `make promote`: Evaluates candidate against frozen promotion criteria (>=10% cost differential, no window regression, grouped holdout agreement).
-- `make rollback`: Demonstrates atomic rollback from `v0002` to `v0001` with cryptographic replay proof.
+- `make rollback`: Demonstrates atomic rollback from `v_promotable` to `v0001` with cryptographic replay proof.
 - `make test`: Runs the automated test suite (all P0 contracts).
 - `make drift`: Checks incoming telemetry against the frozen schema contract.
 
